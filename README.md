@@ -117,6 +117,7 @@ Ticket-backend/
 ├── index.html       # Main application file (HTML + CSS + JS)
 ├── success.mp3      # (Optional) Audio file for valid scan
 ├── error.mp3        # (Optional) Audio file for invalid scan
+├── LICENSE          # Apache License 2.0
 └── README.md        # Project documentation
 ```
 
