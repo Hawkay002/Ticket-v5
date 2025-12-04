@@ -129,4 +129,4 @@ Ticket-backend/
 ---
 
 ## 📄 License
-Distributed under the MIT License.
+Distributed under the [Apache License 2.0](/LICENSE).
