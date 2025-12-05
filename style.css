@@ -369,6 +369,35 @@ button {
     box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
+/* Password Toggle Styles */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1rem; /* Moved from input to wrapper */
+}
+
+.password-wrapper input {
+    margin-bottom: 0; /* Remove margin from input */
+    padding-right: 45px; /* Prevent text overlap with icon */
+}
+
+.password-toggle-icon {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    transition: color 0.3s;
+    z-index: 10;
+}
+
+.password-toggle-icon:hover {
+    color: white;
+}
+
+
 select.premium-input option {
     background-color: #1a1a1a;
     color: white;
@@ -515,34 +544,79 @@ nav {
     padding-bottom: 15px;
 }
 
-/* Ticket Design */
+/* ============================ */
+/* NEW TICKET DESIGN WITH CUTOUTS */
+/* ============================ */
+
 #ticketTemplate {
-    background: #000;
-    border-radius: 20px;
-    padding: 0;
-    position: relative;
-    overflow: hidden;
+    background: transparent; /* Changed from #000 to allow transparent holes */
     width: 100%;
     color: white;
-    border: 1px solid #333;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    position: relative;
+    /* Removed standard border and box-shadow to allow shape clipping */
+    border: none;
+    box-shadow: none;
+    /* Use drop-shadow so the shadow follows the cutout shape */
+    filter: drop-shadow(0 20px 40px rgba(0,0,0,0.6));
+    display: flex;
+    flex-direction: column;
 }
 
-#ticketTemplate::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, #3b82f6, #fff, #3b82f6);
-}
-
+/* TOP PART OF TICKET */
 .ticket-content-wrapper {
+    /* Radial gradients create the "bite" at the bottom corners */
+    background: 
+        radial-gradient(circle at bottom left, transparent 15px, #000 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, #000 16px) bottom right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    
     padding: 30px;
     position: relative;
     z-index: 2;
+    border-radius: 20px 20px 0 0; /* Only top rounded */
+    
+    /* Top and Side Borders (Bottom is handled by the shape) */
+    border: 1px solid #333;
+    border-bottom: none;
+    
+    /* Decoration strip */
+    border-top: 4px solid #3b82f6; 
 }
+
+/* BOTTOM PART OF TICKET (STUB) */
+.ticket-footer {
+    /* Radial gradients create the "bite" at the top corners */
+    background: 
+        radial-gradient(circle at top left, transparent 15px, #080808 16px) top left,
+        radial-gradient(circle at top right, transparent 15px, #080808 16px) top right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    
+    padding: 15px 30px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #555;
+    position: relative;
+    border-radius: 0 0 20px 20px; /* Only bottom rounded */
+    
+    /* Bottom and Side Borders */
+    border: 1px solid #333;
+    border-top: none;
+}
+
+/* Dashed Divider Line - Positioned to not cross the holes */
+.ticket-footer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px; /* Start after the cutout */
+    right: 20px; /* End before the cutout */
+    height: 1px;
+    border-top: 1px dashed #333;
+}
+
+/* ---------------------------- */
 
 .ticket-header {
     text-align: center;
@@ -593,15 +667,6 @@ nav {
     background: white;
     padding: 10px;
     border-radius: 10px;
-}
-
-.ticket-footer {
-    border-top: 1px dashed #333;
-    padding: 15px 30px;
-    text-align: center;
-    font-size: 0.75rem;
-    color: #555;
-    background: #080808;
 }
 
 .serial-pill {
