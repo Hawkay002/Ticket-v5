@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-// Added getDocs to imports for manual fetching
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, query, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // ==========================================
@@ -25,10 +24,19 @@ const APP_COLLECTION_ROOT = 'ticket_events_data';
 let currentUser = null;
 let ticketsUnsubscribe = null;
 let settingsUnsubscribe = null;
+let securityUnsubscribe = null;
 let autoCheckInterval = null;
 
+// --- SECURITY STATE ---
+// globalPassword comes from DB (Synced across devices)
+let globalPassword = ""; 
+// localLockState comes from LocalStorage (Device specific)
+let localLockState = {
+    isLocked: false,
+    lockedTabs: []
+};
+
 // --- STATE MANAGEMENT FOR SELECTIONS ---
-// This Set will persist selected IDs even when the table refreshes
 let selectedTicketIds = new Set(); 
 
 // --- BACKGROUND STARS LOGIC ---
@@ -52,10 +60,10 @@ createStars();
 
 // --- SEARCH & FILTER STATE ---
 let searchTerm = '';
-let currentFilter = 'all'; // Status filter
-let currentGenderFilter = 'all'; // Gender filter
+let currentFilter = 'all'; 
+let currentGenderFilter = 'all';
 let currentSort = 'newest';
-let currentFilteredTickets = []; // Used for export and select all
+let currentFilteredTickets = []; 
 
 // --- TOAST NOTIFICATIONS ---
 function showToast(title, msg) {
@@ -65,7 +73,7 @@ function showToast(title, msg) {
     toast.innerHTML = `
         <div class="toast-title">${title}</div>
         <div class="toast-msg">${msg}</div>
-        <div class="toast-note">Tip: You can always adjust the deadline in Config.</div>
+        <div class="toast-note">Tip: Check Configuration for settings.</div>
     `;
     container.appendChild(toast);
     
@@ -94,6 +102,19 @@ const cancelDeleteBtn = document.getElementById('cancelDelete');
 const confirmDeleteBtn = document.getElementById('confirmDelete');
 let pendingDeleteIds = [];
 
+// Lock Modal Elements
+const unlockModal = document.getElementById('unlock-modal');
+const unlockPasswordInput = document.getElementById('unlockPasswordInput');
+const unlockError = document.getElementById('unlock-error');
+const cancelUnlockBtn = document.getElementById('cancelUnlock');
+const confirmUnlockBtn = document.getElementById('confirmUnlock');
+
+// Security Setting Elements
+const lockPasswordInput = document.getElementById('lockSettingPassword');
+const toggleLockPassword = document.getElementById('toggleLockPassword');
+const lockSystemBtn = document.getElementById('lockSystemBtn');
+const lockCheckboxes = document.querySelectorAll('.lock-checkbox');
+
 // Export Modal Elements
 const exportModal = document.getElementById('export-modal');
 const exportFileName = document.getElementById('exportFileName');
@@ -121,7 +142,16 @@ if (togglePassword && passwordInput) {
     });
 }
 
-// --- CONNECTION STATUS MONITORING ---
+if (toggleLockPassword && lockPasswordInput) {
+    toggleLockPassword.addEventListener('click', function () {
+        const type = lockPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        lockPasswordInput.setAttribute('type', type);
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
+    });
+}
+
+// --- CONNECTION STATUS ---
 function updateOnlineStatus() {
     const syncDot = document.querySelector('.sync-dot');
     if (!syncDot) return;
@@ -137,71 +167,49 @@ function updateOnlineStatus() {
 window.addEventListener('online', () => {
     updateOnlineStatus();
     showToast('Back Online', 'Connection restored.');
-    performSync(); // Fetch latest data when reconnection occurs
+    performSync(); 
 });
 window.addEventListener('offline', updateOnlineStatus);
-
-// Initial Status Check
 updateOnlineStatus();
-
 
 // --- REFRESH / SYNC LOGIC ---
 async function performSync() {
     if(!currentUser) return;
-    
     const icon = refreshStatusIndicator.querySelector('i');
-    
-    // Visual Feedback START
     if(icon) {
         icon.classList.add('fa-spin');
-        icon.style.color = 'var(--accent-secondary)'; // Turn blue while syncing
+        icon.style.color = 'var(--accent-secondary)'; 
     }
-    
     const startTime = Date.now();
-
     try {
-        // 1. FORCE FETCH DATA (The Fix for Real-time Lag)
-        // We use getDocs to pull the absolute latest data from the server
         const ticketsRef = collection(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets');
         const q = query(ticketsRef);
         const snapshot = await getDocs(q);
-        
-        // Update our local list with fresh server data
         bookedTickets = [];
         snapshot.forEach((doc) => {
             bookedTickets.push({ id: doc.id, ...doc.data() });
         });
-
-        // 2. Check time-based statuses
         await checkAutoAbsent();
-        
-        // 3. Refresh UI logic
         renderBookedTickets();
     } catch (err) {
         console.error("Auto-sync error:", err);
     } finally {
-        // 4. Ensure visual feedback lasts at least 1 second
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, 1000 - elapsed);
-        
         setTimeout(() => {
             if(icon) {
                 icon.classList.remove('fa-spin');
-                icon.style.color = ''; // Reset color
+                icon.style.color = ''; 
             }
         }, remaining);
     }
 }
-
-// Attach listener to icon for manual trigger
 refreshStatusIndicator.addEventListener('click', performSync);
 
 // --- EXPORT FUNCTIONALITY ---
 exportTriggerBtn.addEventListener('click', () => {
-    // Check Set size instead of DOM elements
     const count = selectedTicketIds.size;
     if(count === 0) return; 
-
     exportCountMsg.textContent = `Ready to export ${count} item${count !== 1 ? 's' : ''}.`;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '_');
     exportFileName.value = `guest_list_${today}`;
@@ -215,8 +223,6 @@ cancelExportBtn.addEventListener('click', () => {
 confirmExportBtn.addEventListener('click', () => {
     const filename = exportFileName.value || 'guest_list';
     const format = exportFormat.value;
-
-    // Use the Set to filter the bookedTickets array
     let listToExport = [];
     if (selectedTicketIds.size > 0) {
         listToExport = bookedTickets.filter(t => selectedTicketIds.has(t.id));
@@ -224,7 +230,6 @@ confirmExportBtn.addEventListener('click', () => {
         exportModal.style.display = 'none';
         return alert("No data selected to export.");
     }
-
     switch(format) {
         case 'csv': exportCSV(listToExport, filename); break;
         case 'xlsx': exportXLSX(listToExport, filename); break;
@@ -233,7 +238,6 @@ confirmExportBtn.addEventListener('click', () => {
         case 'json': exportJSON(listToExport, filename); break;
         case 'doc': exportDOC(listToExport, filename); break;
     }
-
     exportModal.style.display = 'none';
     showToast("Export Complete", `${listToExport.length} records saved as .${format}`);
 });
@@ -359,10 +363,7 @@ document.querySelectorAll('.dropdown-item').forEach(item => {
         e.stopPropagation();
         const type = item.dataset.type;
         const val = item.dataset.val;
-        
-        // Remove 'selected' from all items of THIS type
         document.querySelectorAll(`.dropdown-item[data-type="${type}"]`).forEach(el => el.classList.remove('selected'));
-        // Add 'selected' to clicked item
         item.classList.add('selected');
 
         if(type === 'filter') currentFilter = val;
@@ -383,9 +384,11 @@ onAuthStateChanged(auth, (user) => {
         appContent.style.display = 'block';
         setupRealtimeListeners(user.uid);
         
-        // Clear old interval if exists
+        // Initialize Local Security State
+        loadLocalSecurityState(user.uid);
+        applySecurityLocks();
+
         if(autoCheckInterval) clearInterval(autoCheckInterval);
-        // Set new interval for 15 SECONDS (15000ms) to sync
         autoCheckInterval = setInterval(performSync, 15000);
     } else {
         currentUser = null;
@@ -394,6 +397,7 @@ onAuthStateChanged(auth, (user) => {
         appContent.style.display = 'none';
         if (ticketsUnsubscribe) ticketsUnsubscribe();
         if (settingsUnsubscribe) settingsUnsubscribe();
+        if (securityUnsubscribe) securityUnsubscribe();
         if (autoCheckInterval) clearInterval(autoCheckInterval);
     }
 });
@@ -443,7 +447,6 @@ function setupRealtimeListeners(userId) {
     const ticketsRef = collection(db, APP_COLLECTION_ROOT, userId, 'tickets');
     const q = query(ticketsRef);
     
-    // Primary Listener (WebSockets)
     ticketsUnsubscribe = onSnapshot(q, (snapshot) => {
         bookedTickets = [];
         snapshot.forEach((doc) => {
@@ -464,15 +467,167 @@ function setupRealtimeListeners(userId) {
             updateSettingsDisplay();
         }
     });
+
+    // --- SECURITY LISTENER (Global Password Only) ---
+    const securityRef = doc(db, APP_COLLECTION_ROOT, userId, 'settings', 'security');
+    securityUnsubscribe = onSnapshot(securityRef, (docSnap) => {
+        if (docSnap.exists()) {
+            // Only sync the password from DB
+            globalPassword = docSnap.data().password || "";
+        } else {
+            globalPassword = "";
+        }
+    });
 }
+
+// --- LOCAL SECURITY STORAGE ---
+function loadLocalSecurityState(userId) {
+    const stored = localStorage.getItem(`ticketApp_lockState_${userId}`);
+    if (stored) {
+        localLockState = JSON.parse(stored);
+    } else {
+        localLockState = { isLocked: false, lockedTabs: [] };
+    }
+}
+
+function saveLocalSecurityState() {
+    if(currentUser) {
+        localStorage.setItem(`ticketApp_lockState_${currentUser.uid}`, JSON.stringify(localLockState));
+    }
+}
+
+function applySecurityLocks() {
+    const { isLocked, lockedTabs } = localLockState;
+    const allNavs = document.querySelectorAll('.nav-btn');
+
+    // Reset visual state
+    allNavs.forEach(btn => {
+        btn.classList.remove('locked');
+    });
+
+    if (isLocked) {
+        // Mark Config as locked visually
+        document.querySelector('[data-tab="settings"]').classList.add('locked');
+        
+        // Mark selected tabs as locked visually
+        lockedTabs.forEach(tabName => {
+            const btn = document.querySelector(`[data-tab="${tabName}"]`);
+            if(btn) btn.classList.add('locked');
+        });
+
+        // Update Lock Controls UI
+        lockSystemBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Locked';
+        lockSystemBtn.classList.add('active'); 
+        
+        // Fill checkboxes based on state & disable them
+        lockCheckboxes.forEach(cb => {
+            cb.checked = lockedTabs.includes(cb.value);
+            cb.disabled = true;
+        });
+        lockPasswordInput.disabled = true;
+        lockPasswordInput.value = ''; // Hide password
+        lockSystemBtn.disabled = true;
+    } else {
+        // Unlocked State
+        lockCheckboxes.forEach(cb => {
+            cb.disabled = false;
+        });
+        lockPasswordInput.disabled = false;
+        lockSystemBtn.disabled = false;
+        lockSystemBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Lock System';
+    }
+}
+
+// --- LOCK ACTION ---
+lockSystemBtn.addEventListener('click', async () => {
+    if(!currentUser) return;
+    
+    const password = lockPasswordInput.value;
+    if(!password) {
+        alert("Please set a password to lock the system.");
+        return;
+    }
+
+    const selectedTabs = [];
+    lockCheckboxes.forEach(cb => {
+        if(cb.checked) selectedTabs.push(cb.value);
+    });
+
+    try {
+        // 1. Save Password Globally (To DB)
+        // This ensures every device has the same key, even if locking is manual
+        await setDoc(doc(db, APP_COLLECTION_ROOT, currentUser.uid, 'settings', 'security'), {
+            password: password
+        }, { merge: true });
+        
+        // 2. Save Lock State Locally (To LocalStorage)
+        localLockState = {
+            isLocked: true,
+            lockedTabs: selectedTabs
+        };
+        saveLocalSecurityState();
+
+        // 3. Apply UI changes immediately
+        applySecurityLocks();
+        
+        // Force navigate away from settings to a safe tab
+        if(!selectedTabs.includes('create')) {
+            document.querySelector('[data-tab="create"]').click();
+        } else if (!selectedTabs.includes('booked')) {
+            document.querySelector('[data-tab="booked"]').click();
+        } else if (!selectedTabs.includes('scanner')) {
+            document.querySelector('[data-tab="scanner"]').click();
+        } else {
+            // If everything is locked, default to Create but it will show locked
+            document.querySelector('[data-tab="create"]').click();
+        }
+
+        showToast("Device Locked", "Configuration and selected tabs are now secured on this device.");
+
+    } catch (err) {
+        console.error("Lock error:", err);
+        alert("Failed to save password to database.");
+    }
+});
+
+// --- UNLOCK ACTION ---
+cancelUnlockBtn.addEventListener('click', () => {
+    unlockModal.style.display = 'none';
+    unlockPasswordInput.value = '';
+    unlockError.style.display = 'none';
+});
+
+confirmUnlockBtn.addEventListener('click', () => {
+    const enteredPass = unlockPasswordInput.value;
+    
+    // Compare against GLOBAL password synced from DB
+    if(enteredPass === globalPassword) {
+        // Unlock this device locally
+        localLockState.isLocked = false;
+        localLockState.lockedTabs = [];
+        saveLocalSecurityState();
+        
+        applySecurityLocks();
+        
+        unlockModal.style.display = 'none';
+        unlockPasswordInput.value = '';
+        unlockError.style.display = 'none';
+        
+        // Navigate to settings
+        document.querySelector('[data-tab="settings"]').click();
+        showToast("Device Unlocked", "Access granted.");
+    } else {
+        unlockError.style.display = 'block';
+        unlockPasswordInput.classList.add('shake');
+        setTimeout(() => unlockPasswordInput.classList.remove('shake'), 500);
+    }
+});
 
 async function checkAutoAbsent() {
     if (!eventSettings.deadline || !bookedTickets.length || !currentUser) return;
 
     const deadlineTime = new Date(eventSettings.deadline).getTime();
     const now = Date.now();
-    
-    // Add a 60-second buffer to prevent fighting between devices with slightly different clocks
     const BUFFER_MS = 60000;
 
     let markedAbsentCount = 0;
@@ -482,13 +637,11 @@ async function checkAutoAbsent() {
     bookedTickets.forEach(ticket => {
         const ticketRef = doc(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets', ticket.id);
         
-        // Only mark absent if clearly past deadline + buffer
         if (now > (deadlineTime + BUFFER_MS) && ticket.status === 'coming-soon') {
             updates.push(updateDoc(ticketRef, { status: 'absent' }));
             markedAbsentCount++;
         }
         
-        // Only revert if clearly before deadline - buffer
         if (now < (deadlineTime - BUFFER_MS) && ticket.status === 'absent') {
             updates.push(updateDoc(ticketRef, { status: 'coming-soon' }));
             revertedCount++;
@@ -505,8 +658,30 @@ async function checkAutoAbsent() {
 const navButtons = document.querySelectorAll('.nav-btn');
 const tabs = document.querySelectorAll('.tab-content');
 
+// UPDATED NAV LOGIC FOR LOCKING
 navButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (e) => {
+        const targetTab = button.dataset.tab;
+
+        // Security Check (Local State)
+        if (localLockState.isLocked) {
+            // Case 1: Clicking Configuration (Always locked if system is locked)
+            if (targetTab === 'settings') {
+                e.preventDefault();
+                unlockModal.style.display = 'flex';
+                unlockPasswordInput.focus();
+                return; // Stop navigation
+            }
+            
+            // Case 2: Clicking a specifically locked tab
+            if (localLockState.lockedTabs.includes(targetTab)) {
+                e.preventDefault();
+                showToast("Access Denied", "This tab is locked on this device.");
+                return; // Stop navigation
+            }
+        }
+
+        // Standard Navigation Logic
         const scannerVideo = document.getElementById('scanner-video');
         if (scannerVideo.srcObject && button.dataset.tab !== 'scanner') {
             stopScan();
@@ -590,10 +765,7 @@ function renderBookedTickets() {
         const matchesSearch = ticket.name.toLowerCase().includes(searchTerm) || ticket.phone.includes(searchTerm);
         if (!matchesSearch) return false;
 
-        // Check Status
         if (currentFilter !== 'all' && ticket.status !== currentFilter) return false;
-        
-        // Check Gender
         if (currentGenderFilter !== 'all' && ticket.gender !== currentGenderFilter) return false;
 
         return true;
@@ -628,7 +800,6 @@ function renderBookedTickets() {
             statusHtml += `<div style="font-size: 0.75rem; color: #888; margin-top: 4px; white-space: nowrap;">${timeStr}</div>`;
         }
 
-        // Determine if checked based on Set state
         const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
 
         tr.innerHTML = `
@@ -643,18 +814,22 @@ function renderBookedTickets() {
         bookedTicketsTable.appendChild(tr);
     });
 
-    // Re-attach view listeners
     document.querySelectorAll('.view-ticket-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const ticket = bookedTickets.find(t => t.id === e.target.dataset.id);
             if(ticket) {
+                // Local Security Check for Create Tab
+                if(localLockState.isLocked && localLockState.lockedTabs.includes('create')) {
+                    showToast("Access Denied", "Issue Ticket tab is locked on this device.");
+                    return;
+                }
+
                 document.querySelector('[data-tab="create"]').click();
                 updateTicketPreview(ticket);
             }
         });
     });
 
-    // Attach checkbox listeners to update the Set
     document.querySelectorAll('.ticket-checkbox').forEach(box => {
         box.addEventListener('change', (e) => {
             const rowId = e.target.closest('tr').dataset.id;
@@ -698,7 +873,7 @@ document.getElementById('whatsappBtn').addEventListener('click', () => {
 
     html2canvas(ticketTemplate, {
         scale: 3,
-        backgroundColor: null, // TRANSPARENT BACKGROUND FOR PNG
+        backgroundColor: null, 
         useCORS: true
     }).then(canvas => {
         ticketTemplate.style.border = originalBorder;
@@ -737,7 +912,6 @@ document.getElementById('whatsappBtn').addEventListener('click', () => {
     });
 });
 
-// Bulk Delete & Selection Logic
 const selectBtn = document.getElementById('selectBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
@@ -746,17 +920,11 @@ const selectionCountSpan = document.getElementById('selectionCount');
 let isSelectionMode = false;
 
 function updateSelectionCount() {
-    // Check Set size instead of counting DOM elements
     const count = selectedTicketIds.size;
     selectionCountSpan.textContent = `(${count} selected)`;
     exportTriggerBtn.disabled = count === 0;
-    
-    // Also update "Select All" checkbox visual state
-    // If all visible tickets are in the set, check the box.
     const allVisibleSelected = currentFilteredTickets.length > 0 && 
                                currentFilteredTickets.every(t => selectedTicketIds.has(t.id));
-    
-    // Don't check if no tickets visible
     if(currentFilteredTickets.length === 0) selectAllCheckbox.checked = false;
     else selectAllCheckbox.checked = allVisibleSelected;
 }
@@ -767,8 +935,8 @@ selectBtn.addEventListener('click', () => {
     selectAllContainer.style.display = isSelectionMode ? 'flex' : 'none'; 
     selectBtn.textContent = isSelectionMode ? 'Cancel' : 'Select';
     if(!isSelectionMode) {
-        selectedTicketIds.clear(); // Clear memory
-        renderBookedTickets(); // Re-render to clear checks
+        selectedTicketIds.clear(); 
+        renderBookedTickets(); 
         selectAllCheckbox.checked = false;
         updateSelectionCount();
     } else {
@@ -776,27 +944,19 @@ selectBtn.addEventListener('click', () => {
     }
 });
 
-// UPDATED SELECT ALL LOGIC
 selectAllCheckbox.addEventListener('change', (e) => {
     const isChecked = e.target.checked;
-    
-    // Update memory Set
     currentFilteredTickets.forEach(t => {
         if(isChecked) selectedTicketIds.add(t.id);
         else selectedTicketIds.delete(t.id);
     });
-    
-    // Re-render table to reflect state (safest way to ensure all checks update)
     renderBookedTickets();
     updateSelectionCount();
 });
 
 deleteBtn.addEventListener('click', () => {
-    // Convert Set to Array
     const selectedIds = Array.from(selectedTicketIds);
-
     if(selectedIds.length === 0) return alert('Select tickets to delete');
-
     pendingDeleteIds = selectedIds;
     deleteCountSpan.textContent = selectedIds.length;
     confirmModal.style.display = 'flex';
@@ -816,12 +976,11 @@ confirmDeleteBtn.addEventListener('click', async () => {
         confirmModal.style.display = 'none';
         confirmDeleteBtn.textContent = "Delete";
         pendingDeleteIds = [];
-        selectedTicketIds.clear(); // Clear selection after delete
-        selectBtn.click(); // Exit selection mode
+        selectedTicketIds.clear(); 
+        selectBtn.click(); 
     }
 });
 
-// Scanner
 const startScanBtn = document.getElementById('startScanBtn');
 const scannerVideo = document.getElementById('scanner-video');
 const scanResult = document.getElementById('scanResult');
@@ -854,12 +1013,10 @@ function stopScan() {
     startScanBtn.textContent = 'Activate Camera';
 }
 
-let isCooldown = false; // Prevents rapid rescanning
+let isCooldown = false; 
 
 function tick() {
-    // Only continue if the camera is still running
     if (!scannerVideo.srcObject) return;
-
     if (scannerVideo.readyState === scannerVideo.HAVE_ENOUGH_DATA) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -868,20 +1025,14 @@ function tick() {
         ctx.drawImage(scannerVideo, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0,0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-
         if(code && !isCooldown) {
-            // Activate cooldown to prevent double scans
             isCooldown = true;
             validateTicket(code.data);
-            
-            // Set 1.5 second buffer
             setTimeout(() => {
                 isCooldown = false;
             }, 1500);
         }
     }
-    
-    // Always keep the loop running while the camera is active
     if (scannerVideo.srcObject) {
         requestAnimationFrame(tick);
     }
@@ -890,7 +1041,6 @@ function tick() {
 async function validateTicket(ticketId) {
     const ticket = bookedTickets.find(t => t.id === ticketId);
     scanResult.style.display = 'block';
-
     if(ticket) {
         if(ticket.status === 'coming-soon' && !ticket.scanned) {
             await updateDoc(doc(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets', ticketId), {
@@ -921,7 +1071,6 @@ async function validateTicket(ticketId) {
 function playBeep() {
     const audio = new Audio('success.mp3');
     audio.play().catch(e => {
-        console.log("Custom sound not found, using fallback beep.");
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         osc.connect(ctx.destination);
@@ -934,7 +1083,6 @@ function playBeep() {
 function playError() {
     const audio = new Audio('error.mp3');
     audio.play().catch(e => {
-        console.log("Custom sound not found, using fallback error.");
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
@@ -945,11 +1093,8 @@ function playError() {
     });
 }
 
-// Service Worker Registration
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-        navigator.serviceWorker
-            .register("/service-worker.js")
-            .catch(err => console.log("SW failed:", err));
+        navigator.serviceWorker.register("/service-worker.js").catch(err => console.log("SW failed:", err));
     });
 }
