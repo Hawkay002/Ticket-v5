@@ -36,10 +36,13 @@ designed for private or high-end events. It replaces spreadsheets and
 fragile manual workflows with a smooth, dark-themed dashboard that runs
 on any modern browser.
 
-**Why this stands out:** - ✨ **Premium Look**: Uses a "Midnight Void"
+**Why this stands out:** 
+- ✨ **Premium Look**: Uses a "Midnight Void"
 theme featuring animated stars, frosted-glass panels, and the 'Outfit'
-font. - ⚡ **Instant Updates**: Every ticket action syncs live across
-devices via Firebase Firestore. - 🔒 **Secure Access Only**: No public
+font.
+- ⚡ **Instant Updates**: Every ticket action syncs live across
+devices via Firebase Firestore.
+- 🔒 **Secure Access Only**: No public
 signup; only pre-approved admin emails can access the system.
 
 ## ✨ Key Features
@@ -101,13 +104,15 @@ Export the guest list in any of these formats:
 
 ### Prerequisites
 
--   Firebase account\
+-   Firebase account
 -   GitHub account (optional for hosting)
 
 ### Step 1: Clone the Repository
 
-\`\`\`bash git clone https://github.com/Hawkay002/Ticket-backend.git cd
-Ticket-backend \`\`\`
+```bash
+git clone https://github.com/Hawkay002/Ticket-backend.git
+cd Ticket-backend
+```
 
 ### Step 2: Firebase Configuration
 
@@ -123,8 +128,12 @@ Ticket-backend \`\`\`
 Replace the Firebase config in `script.js` or inside `index.html`:
 
 ```js
-const firebaseConfig = { apiKey: "YOUR_API_KEY", authDomain:
-"YOUR_PROJECT.firebaseapp.com", projectId: "YOUR_PROJECT_ID", };
+const firebaseConfig = {
+apiKey: "YOUR_API_KEY",
+authDomain: "YOUR_PROJECT.firebaseapp.com",
+projectId: "YOUR_PROJECT_ID",
+//Rest of config
+};
 ```
 
 ### Step 4: Add Custom Sounds Optional
