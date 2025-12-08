@@ -576,7 +576,7 @@ nav {
 /* NEW TICKET DESIGN WITH CUTOUTS */
 /* ============================ */
 
-#ticketTemplate {
+#ticketTemplate, #modalTicketTemplate {
     background: transparent; /* Changed from #000 to allow transparent holes */
     width: 100%;
     color: white;
@@ -1004,6 +1004,30 @@ tr:hover td {
     margin-right: 12px;
     transform: scale(1.3);
     accent-color: #ef4444;
+}
+
+/* TICKET MODAL CLOSE BUTTON */
+.close-modal-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #aaa;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    z-index: 10;
+}
+
+.close-modal-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
 }
 
 @media (max-width: 768px) {
