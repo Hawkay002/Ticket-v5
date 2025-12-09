@@ -835,18 +835,41 @@ function renderBookedTickets() {
         
         let statusHtml = `<span class="status-badge status-${ticket.status}">${ticket.status.replace('-', ' ')}</span>`;
         if(ticket.status === 'arrived' && ticket.scannedAt) {
-            const timeStr = new Date(ticket.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            statusHtml += `<div style="font-size: 0.75rem; color: #888; margin-top: 4px; white-space: nowrap;">${timeStr}</div>`;
+            const dateObj = new Date(ticket.scannedAt);
+            
+            // Format Date: DD/MMM/YYYY
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+            const year = dateObj.getFullYear();
+            const dateStr = `${day}/${month}/${year}`;
+
+            // Format Time: HH:MM:SS AM/PM
+            const timeStr = dateObj.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit', 
+                hour12: true 
+            });
+
+            // Added Date Line
+            statusHtml += `<div style="font-size: 0.6rem; color: #888; margin-top: 3px; white-space: nowrap;">On - ${dateStr}</div>`;
+            statusHtml += `<div style="font-size: 0.6rem; color: #888; white-space: nowrap;">At - ${timeStr}</div>`;
         }
 
         const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
 
-        // Added Index+1 for Serial Number Column
+        // UPDATED: Details Column now uses flex to force side-by-side layout
         tr.innerHTML = `
             <td style="display: ${checkboxDisplayStyle};"><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);" ${isChecked}></td>
             <td style="text-align: center; color: var(--accent-secondary); font-weight: bold;">${index + 1}</td>
             <td style="font-weight: 500; color: white;">${ticket.name}</td>
-            <td>${ticket.age} / ${ticket.gender}</td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+                    <span>${ticket.age}</span>
+                    <span style="color: #444;">|</span>
+                    <span>${ticket.gender}</span>
+                </div>
+            </td>
             <td>${ticket.phone}</td>
             <td style="font-family: monospace; font-size: 0.8rem; color: #888;">${ticket.id.substring(0, 8)}...</td>
             <td>${statusHtml}</td>
