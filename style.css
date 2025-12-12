@@ -179,6 +179,61 @@ button {
     100% { opacity: 1; transform: scale(1); }
 }
 
+/* --- NEW: Username Selection Styles --- */
+.username-list-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    min-height: 60px;
+}
+
+.username-chip {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: #aaa;
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.username-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.username-chip.selected {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: var(--accent-secondary);
+    color: white;
+}
+
+.username-chip.selected::before {
+    content: '\f00c'; /* Font Awesome Check */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 0.7rem;
+}
+
+#selectAllUsernamesBtn {
+    transition: opacity 0.2s;
+}
+
+#selectAllUsernamesBtn:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
 /* ========================================= */
 /* SEARCH & FILTER BAR STYLES */
 /* ========================================= */
@@ -869,6 +924,19 @@ td {
     width: 1%; /* Trick: Makes the column shrink to fit content, but since content is nowrap, it expands to fit largest item */
 }
 
+/* ACTIVITY LOGS TABLE SPECIFIC WIDTHS */
+#activityLogsTable tr td:nth-child(2), /* User */
+#activityLogsTable tr td:nth-child(3) { /* Action */
+    width: 1%;
+    white-space: nowrap;
+}
+
+#activityLogsTable tr td:nth-child(4) { /* Details */
+    white-space: normal; /* Allow wrapping */
+    word-break: break-word; /* Prevent overflow */
+    min-width: 250px;
+}
+
 tr:last-child td {
     border-bottom: none;
 }
@@ -904,6 +972,63 @@ tr:hover td {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* NEW: LOG ACTION BADGES */
+.log-action-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    border: 1px solid transparent;
+}
+
+.log-action-LOGIN {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent-secondary);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.log-action-TICKET_CREATE {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-green);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.log-action-SCAN_ENTRY {
+    background: rgba(236, 72, 153, 0.1); /* Pinkish */
+    color: #ec4899;
+    border-color: rgba(236, 72, 153, 0.2);
+}
+
+.log-action-CONFIG_CHANGE {
+    background: rgba(245, 158, 11, 0.1); /* Orange */
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.log-action-HELP_CALL {
+    background: rgba(139, 92, 246, 0.1); /* Purple */
+    color: #8b5cf6;
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+/* RED/DANGER ACTIONS */
+.log-action-TICKET_DELETE,
+.log-action-FACTORY_RESET,
+.log-action-LOCK_ACTION {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.log-action-DEFAULT {
+    background: rgba(255, 255, 255, 0.05);
+    color: #888;
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .action-btn-small {
