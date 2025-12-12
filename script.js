@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // ==========================================
 // 1. FIREBASE CONFIGURATION
@@ -57,7 +57,13 @@ let eventSettings = { name: '', place: '', deadline: '' };
 // Admin/Security State
 let remoteLockedTabs = []; 
 let selectedUserForConfig = null; 
+let selectedUsernamesForLock = new Set(); // Stores usernames selected in Admin UI
 let managedUsersDeviceCache = {}; 
+let currentLockData = null; // NEW: Store fetched lock data for selected user
+
+// Logs State
+let allActivityLogs = [];
+let currentLogFilter = 'all';
 
 // UI State
 let searchTerm = '';
@@ -93,6 +99,7 @@ const gatekeeperLogoutBtn = document.getElementById('gatekeeperLogoutBtn');
 // Navigation
 const navButtons = document.querySelectorAll('.nav-btn');
 const tabs = document.querySelectorAll('.tab-content');
+const navLogsBtn = document.getElementById('nav-logs'); // NEW: Logs button
 
 // Admin Panel
 const adminLockPanel = document.getElementById('admin-lock-panel');
@@ -104,6 +111,8 @@ const remoteLockCheckboxes = document.querySelectorAll('.remote-lock-checkbox');
 const triggerLockModalBtn = document.getElementById('triggerLockModalBtn');
 const triggerBtnText = document.getElementById('triggerBtnText');
 const factoryResetBtn = document.getElementById('factoryResetBtn');
+const usernameListContainer = document.getElementById('username-list-container');
+const selectAllUsernamesBtn = document.getElementById('selectAllUsernamesBtn');
 
 // Admin Lock Modal
 const adminLockModal = document.getElementById('admin-lock-modal');
@@ -132,6 +141,13 @@ const refreshStatusIndicator = document.getElementById('refreshStatusIndicator')
 const searchInput = document.getElementById('searchGuestInput');
 const filterSortBtn = document.getElementById('filterSortBtn');
 const filterDropdown = document.getElementById('filterDropdown');
+
+// Logs Elements
+const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+const searchLogsInput = document.getElementById('searchLogsInput');
+const filterLogsTypeBtn = document.getElementById('filterLogsTypeBtn');
+const filterLogsDropdown = document.getElementById('filterLogsDropdown');
+const activityLogsTable = document.getElementById('activityLogsTable');
 
 // Selection & Export
 const selectBtn = document.getElementById('selectBtn');
@@ -172,7 +188,29 @@ const syncStatusDot = document.querySelector('.sync-dot');
 
 
 // ==========================================
-// 4. HEARTBEAT & PRESENCE LOGIC
+// 4. LOGGING INFRASTRUCTURE
+// ==========================================
+
+async function logAction(actionType, details) {
+    if (!currentUser) return;
+    
+    // Don't block UI with logging
+    try {
+        await addDoc(collection(db, 'activity_logs'), {
+            timestamp: Date.now(),
+            userEmail: currentUser.email,
+            username: currentUsername || 'Auth Pending',
+            action: actionType,
+            details: details
+        });
+    } catch (e) {
+        console.warn("Failed to log activity:", e);
+    }
+}
+
+
+// ==========================================
+// 5. AUTHENTICATION LIFECYCLE
 // ==========================================
 
 function getDeviceId() {
@@ -209,11 +247,6 @@ async function updateHeartbeat(userEmail) {
     }
 }
 
-
-// ==========================================
-// 5. AUTHENTICATION LIFECYCLE
-// ==========================================
-
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         // --- STEP 1: FIREBASE LOGIN SUCCESS ---
@@ -225,6 +258,7 @@ onAuthStateChanged(auth, async (user) => {
             // ADMIN: Bypass Gatekeeper
             currentUsername = "ADMIN";
             initializeAppSession();
+            logAction("LOGIN", "Admin logged in via email.");
         } else {
             // STAFF: Show Gatekeeper
             appContent.style.display = 'none'; // Hide app
@@ -271,6 +305,9 @@ gatekeeperSubmitBtn.addEventListener('click', async () => {
             userEmailDisplay.textContent = `${userData.realName} (${inputUsername})`;
             usernameGatekeeperModal.style.display = 'none';
             
+            // Log successful verification
+            logAction("LOGIN", `Staff identity verified: ${inputUsername}`);
+            
             // Proceed to App Init
             initializeAppSession();
 
@@ -309,10 +346,21 @@ function initializeAppSession() {
         initGlobalSecurity(); 
         remoteLockedTabs = []; 
         userEmailDisplay.textContent = "Administrator";
+        
+        // Show Logs Tab Button for Admin
+        if(navLogsBtn) navLogsBtn.style.display = 'inline-block';
+        
+        // Show Settings Form for Admin
+        if(eventSettingsForm) eventSettingsForm.style.display = 'block';
+        
     } else {
         listenForRemoteLocks(currentUser.email); // Uses email for fetching lock doc
         adminLockPanel.style.display = 'none';
         userLockStatus.style.display = 'block';
+        if(navLogsBtn) navLogsBtn.style.display = 'none';
+
+        // HIDE Settings Form for Staff
+        if(eventSettingsForm) eventSettingsForm.style.display = 'none';
     }
 
     // 4. Start Auto-Sync
@@ -482,29 +530,33 @@ function renderManagedUsersList() {
     });
 }
 
+// -------------------------------------------------------------
+// USERNAME FETCHING AND SELECTION LOGIC
+// -------------------------------------------------------------
+
 window.selectUserForConfig = async function(email) {
     selectedUserForConfig = email;
     selectedUserEmailSpan.textContent = email;
     userLockConfigArea.style.display = 'block';
     renderManagedUsersList(); 
     remoteLockCheckboxes.forEach(cb => cb.checked = false);
+    selectedUsernamesForLock.clear();
+    currentLockData = null; // Reset
+
+    // Load Usernames for this email
+    await fetchAndRenderUsernames(email);
 
     try {
         triggerBtnText.textContent = "Loading...";
         triggerLockModalBtn.disabled = true;
 
+        // Fetch current lock data for this email
         const lockDoc = await getDoc(doc(db, 'global_locks', email));
-        let currentlyLockedTabs = [];
-
         if (lockDoc.exists()) {
-            currentlyLockedTabs = lockDoc.data().lockedTabs || [];
+            currentLockData = lockDoc.data();
         }
 
-        remoteLockCheckboxes.forEach(cb => {
-            if (currentlyLockedTabs.includes(cb.value)) cb.checked = true;
-        });
-
-        updateAdminLockButtonState(currentlyLockedTabs);
+        updateAdminLockButtonState();
 
     } catch (error) {
         console.error("Error fetching user locks:", error);
@@ -514,32 +566,125 @@ window.selectUserForConfig = async function(email) {
     }
 };
 
-function updateAdminLockButtonState(currentlyLockedTabs) {
-    if (currentlyLockedTabs.length > 0) {
-        triggerLockModalBtn.classList.remove('danger-mode');
-        triggerLockModalBtn.classList.add('success-mode');
-        triggerBtnText.textContent = "Sync & Unlock";
+async function fetchAndRenderUsernames(email) {
+    usernameListContainer.innerHTML = '<span style="color:#666; font-size: 0.8rem;">Loading associated usernames...</span>';
+    
+    try {
+        const q = query(collection(db, 'allowed_usernames'), where('email', '==', email));
+        const querySnapshot = await getDocs(q);
         
-        if(lockModalActionText) lockModalActionText.textContent = "update or release access restrictions";
-        if(confirmAdminLock) confirmAdminLock.textContent = "Confirm Sync";
-        confirmAdminLock.classList.remove('danger');
-        confirmAdminLock.classList.add('success');
+        usernameListContainer.innerHTML = '';
 
-    } else {
-        triggerLockModalBtn.classList.remove('success-mode');
-        triggerLockModalBtn.classList.add('danger-mode');
-        triggerBtnText.textContent = "Sync & Lock";
+        if (querySnapshot.empty) {
+            usernameListContainer.innerHTML = '<span style="color:#888; font-style: italic;">No specific usernames found. Create via console.</span>';
+            return;
+        }
 
-        if(lockModalActionText) lockModalActionText.textContent = "restrict access";
-        if(confirmAdminLock) confirmAdminLock.textContent = "Lock Devices";
-        confirmAdminLock.classList.remove('success');
-        confirmAdminLock.classList.add('danger');
+        querySnapshot.forEach((doc) => {
+            const username = doc.id;
+            const chip = document.createElement('div');
+            chip.className = 'username-chip';
+            chip.dataset.username = username;
+            chip.innerHTML = `<i class="fa-solid fa-user"></i> ${username}`;
+            
+            chip.addEventListener('click', () => {
+                if (selectedUsernamesForLock.has(username)) {
+                    selectedUsernamesForLock.delete(username);
+                    chip.classList.remove('selected');
+                } else {
+                    selectedUsernamesForLock.add(username);
+                    chip.classList.add('selected');
+                }
+                
+                // NEW LOGIC: If single user selected, auto-check their locked tabs
+                if (selectedUsernamesForLock.size === 1 && currentLockData && currentLockData.userSpecificLocks) {
+                    const [singleUser] = selectedUsernamesForLock;
+                    const locks = currentLockData.userSpecificLocks[singleUser] || [];
+                    
+                    remoteLockCheckboxes.forEach(cb => {
+                        cb.checked = locks.includes(cb.value);
+                    });
+                } else {
+                    // Multiple or none: clear boxes to avoid confusion (or keep as is, but clearing is safer for bulk)
+                    remoteLockCheckboxes.forEach(cb => cb.checked = false);
+                }
+
+                updateAdminLockButtonState();
+            });
+
+            usernameListContainer.appendChild(chip);
+        });
+
+    } catch (e) {
+        console.error("Error fetching usernames:", e);
+        usernameListContainer.innerHTML = '<span style="color: #ef4444;">Error loading usernames.</span>';
     }
 }
 
+if(selectAllUsernamesBtn) {
+    selectAllUsernamesBtn.addEventListener('click', () => {
+        const chips = usernameListContainer.querySelectorAll('.username-chip');
+        const allSelected = Array.from(chips).every(c => c.classList.contains('selected'));
+
+        chips.forEach(chip => {
+            const username = chip.dataset.username;
+            if (allSelected) {
+                // Deselect All
+                chip.classList.remove('selected');
+                selectedUsernamesForLock.delete(username);
+            } else {
+                // Select All
+                if (!chip.classList.contains('selected')) {
+                    chip.classList.add('selected');
+                    selectedUsernamesForLock.add(username);
+                }
+            }
+        });
+        
+        // Clear checkboxes on bulk select to prevent accidental mass locking based on one user's state
+        remoteLockCheckboxes.forEach(cb => cb.checked = false);
+        
+        updateAdminLockButtonState();
+    });
+}
+
+function updateAdminLockButtonState() {
+    const userCount = selectedUsernamesForLock.size;
+    
+    if (userCount > 0) {
+        triggerLockModalBtn.disabled = false;
+        triggerBtnText.textContent = `Sync Locks for ${userCount} User${userCount > 1 ? 's' : ''}`;
+        
+        if(lockModalActionText) lockModalActionText.textContent = `restrict access for ${userCount} selected users`;
+    } else {
+        triggerBtnText.textContent = "Select Users to Configure";
+    }
+    
+    // Style update based on checkbox selection (visual only)
+    const anyChecked = Array.from(remoteLockCheckboxes).some(cb => cb.checked);
+    if(anyChecked) {
+        triggerLockModalBtn.classList.remove('success-mode');
+        triggerLockModalBtn.classList.add('danger-mode');
+    } else {
+        triggerLockModalBtn.classList.remove('danger-mode');
+        triggerLockModalBtn.classList.add('success-mode');
+    }
+}
+
+// Add listener to checkboxes to update button style immediately
+remoteLockCheckboxes.forEach(cb => {
+    cb.addEventListener('change', updateAdminLockButtonState);
+});
+
+
 triggerLockModalBtn.addEventListener('click', () => {
     if (!selectedUserForConfig) return;
-    lockTargetEmailSpan.textContent = selectedUserForConfig;
+    if (selectedUsernamesForLock.size === 0) {
+        alert("Please select at least one username to configure.");
+        return;
+    }
+    
+    lockTargetEmailSpan.textContent = `${selectedUserForConfig} (${selectedUsernamesForLock.size} users)`;
     adminLockModal.style.display = 'flex';
     adminLockPassword.value = '';
     adminLockPassword.focus();
@@ -588,22 +733,52 @@ confirmAdminLock.addEventListener('click', async () => {
             return;
         }
 
+        // 1. Get Selected Tabs
         const lockedTabs = [];
         remoteLockCheckboxes.forEach(cb => {
             if (cb.checked) lockedTabs.push(cb.value);
         });
 
+        // 2. Prepare Updates for Selected Usernames
         const lockRef = doc(db, 'global_locks', selectedUserForConfig);
         confirmAdminLock.textContent = "Syncing...";
 
-        await setDoc(lockRef, {
-            lockedTabs: lockedTabs,
-            updatedAt: Date.now()
-        }, { merge: true });
+        // We use setDoc with merge to update specific keys in the map
+        const updates = {};
         
-        showToast("Sync Successful", `Settings pushed to ${selectedUserForConfig}`);
+        selectedUsernamesForLock.forEach(username => {
+            updates[`userSpecificLocks.${username}`] = lockedTabs;
+        });
+        
+        // Also update timestamp
+        updates.updatedAt = Date.now();
+
+        await updateDoc(lockRef, updates).catch(async (err) => {
+            // If doc doesn't exist, use setDoc
+            if (err.code === 'not-found') {
+                const initialData = { userSpecificLocks: {} };
+                selectedUsernamesForLock.forEach(username => {
+                    initialData.userSpecificLocks[username] = lockedTabs;
+                });
+                initialData.updatedAt = Date.now();
+                await setDoc(lockRef, initialData);
+            } else {
+                throw err;
+            }
+        });
+        
+        // LOGGING UPDATED: Use specific LOCK_ACTION type
+        const usernameList = Array.from(selectedUsernamesForLock).join(', ');
+        logAction("LOCK_ACTION", `Admin locked tabs (${lockedTabs.join(', ') || 'none'}) for users: [${usernameList}] in ${selectedUserForConfig}`);
+
+        showToast("Sync Successful", `Updated permissions for ${selectedUsernamesForLock.size} users.`);
         adminLockModal.style.display = 'none';
-        updateAdminLockButtonState(lockedTabs);
+        
+        // Reset selection
+        selectedUsernamesForLock.clear();
+        document.querySelectorAll('.username-chip.selected').forEach(c => c.classList.remove('selected'));
+        remoteLockCheckboxes.forEach(cb => cb.checked = false);
+        updateAdminLockButtonState();
 
     } catch (e) {
         console.error("Lock sync failed:", e);
@@ -697,6 +872,9 @@ if (confirmFactoryReset) {
 
             confirmFactoryReset.textContent = "WIPING DATABASE...";
             
+            // LOGGING UPDATED: Use specific FACTORY_RESET type
+            logAction("FACTORY_RESET", `Admin (${currentUsername || currentUser.email}) initiated FACTORY RESET. All data wiped.`);
+
             const ticketsQ = query(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'));
             const tSnap = await getDocs(ticketsQ);
             const tPromises = tSnap.docs.map(d => deleteDoc(d.ref));
@@ -710,6 +888,12 @@ if (confirmFactoryReset) {
             await Promise.all(lPromises);
             
             await deleteDoc(doc(db, 'admin_settings', 'security'));
+            
+            // Also wipe logs
+            const logsQ = query(collection(db, 'activity_logs'));
+            const logSnap = await getDocs(logsQ);
+            const lPromisesLogs = logSnap.docs.map(d => deleteDoc(d.ref));
+            await Promise.all(lPromisesLogs);
 
             showToast("SYSTEM RESET", "Database has been completely erased.");
             setTimeout(() => window.location.reload(), 2000);
@@ -735,7 +919,19 @@ function listenForRemoteLocks(userEmail) {
     lockUnsubscribe = onSnapshot(lockRef, (doc) => {
         if (doc.exists()) {
             const data = doc.data();
-            applyRemoteLocks(data.lockedTabs || []);
+            
+            // Priority: Check if there is a specific lock for the current username
+            let tabsToLock = [];
+            
+            if (data.userSpecificLocks && currentUsername && data.userSpecificLocks[currentUsername] !== undefined) {
+                // Apply specific locks for this username
+                tabsToLock = data.userSpecificLocks[currentUsername];
+            } else {
+                // Fallback: Use global locks (backward compatibility or if no specific user lock set)
+                tabsToLock = data.lockedTabs || [];
+            }
+            
+            applyRemoteLocks(tabsToLock);
         } else {
             applyRemoteLocks([]); 
         }
@@ -765,7 +961,7 @@ function applyRemoteLocks(tabsToLock) {
             showToast("Access Restricted", "Administrator has locked this tab.");
             playError();
         } else {
-            document.querySelector('[data-tab="settings"]').click();
+             document.querySelector('[data-tab="settings"]').click();
         }
     }
 }
@@ -812,7 +1008,6 @@ function playBeep() {
     audio.play().catch(() => {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
-        osc.connect(ctx.destination);
         osc.frequency.value = 800;
         osc.start();
         setTimeout(() => osc.stop(), 100);
@@ -850,6 +1045,11 @@ navButtons.forEach(button => {
 
         if (scannerVideo.srcObject && button.dataset.tab !== 'scanner') {
             stopScan();
+        }
+
+        // NEW: If Logs tab is clicked, fetch data
+        if (targetTab === 'logs') {
+            fetchAndRenderLogs();
         }
 
         navButtons.forEach(btn => btn.classList.remove('active'));
@@ -980,6 +1180,10 @@ ticketForm.addEventListener('submit', async (e) => {
 
     try {
         const docRef = await addDoc(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'), newTicket);
+        
+        // LOGGING UPDATED: Explicitly state issuer
+        logAction("TICKET_CREATE", `Issued by ${currentUsername || 'Admin'}: ticket ${docRef.id.substring(0,6)}... for guest: ${name}`);
+
         updateTicketPreview({ ...newTicket, id: docRef.id });
         ticketForm.reset();
         showToast("Success", "Ticket generated in Shared Database.");
@@ -1155,6 +1359,17 @@ document.querySelectorAll('.dropdown-item').forEach(item => {
         e.stopPropagation();
         const type = item.dataset.type;
         const val = item.dataset.val;
+        
+        // Log Filter Dropdown Handling
+        if (type === 'log-filter') {
+            document.querySelectorAll(`.dropdown-item[data-type="log-filter"]`).forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            currentLogFilter = val;
+            renderLogsTable(); // Re-render logs locally
+            filterLogsDropdown.classList.remove('show');
+            return;
+        }
+
         document.querySelectorAll(`.dropdown-item[data-type="${type}"]`).forEach(el => el.classList.remove('selected'));
         item.classList.add('selected');
         if(type === 'filter') currentFilter = val;
@@ -1225,6 +1440,10 @@ confirmDeleteBtn.addEventListener('click', async () => {
         for(const id of pendingDeleteIds) {
             await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', id));
         }
+        
+        // LOGGING UPDATED: Use specific delete action
+        logAction("TICKET_DELETE", `Deleted ${pendingDeleteIds.length} tickets from guest list.`);
+
         confirmModal.style.display = 'none';
         confirmDeleteBtn.textContent = "Delete";
         pendingDeleteIds = [];
@@ -1267,6 +1486,10 @@ confirmExportBtn.addEventListener('click', () => {
         case 'json': exportJSON(listToExport, filename); break;
         case 'doc': exportDOC(listToExport, filename); break;
     }
+    
+    // LOGGING
+    logAction("EXPORT_DATA", `Exported ${listToExport.length} records as ${format.toUpperCase()}`);
+
     exportModal.style.display = 'none';
     showToast("Export Complete", `${listToExport.length} records saved.`);
 });
@@ -1516,8 +1739,13 @@ async function validateTicket(ticketId) {
             await updateDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', ticketId), {
                 status: 'arrived',
                 scanned: true,
-                scannedAt: Date.now()
+                scannedAt: Date.now(),
+                scannedBy: currentUsername || 'Admin' // NEW: Store who scanned it
             });
+            
+            // LOGGING UPDATED: Explicitly state scanner
+            logAction("SCAN_ENTRY", `Scanned by ${currentUsername || 'Admin'}: Guest ${ticket.name} (ID: ${ticketId.substring(0,6)})`);
+
             scanResult.style.background = 'rgba(16, 185, 129, 0.2)';
             scanResult.style.color = '#10b981';
             scanResult.style.border = '1px solid #10b981';
@@ -1548,13 +1776,21 @@ eventSettingsForm.addEventListener('submit', async (e) => {
     if (!currentUser) return;
     if (!navigator.onLine) return showToast("Offline", "Cannot save settings while offline.");
 
+    const newName = document.getElementById('eventName').value;
+    const newPlace = document.getElementById('eventPlace').value;
+    const newDeadline = document.getElementById('arrivalDeadline').value;
+
     const newSettings = {
-        name: document.getElementById('eventName').value,
-        place: document.getElementById('eventPlace').value,
-        deadline: document.getElementById('arrivalDeadline').value
+        name: newName,
+        place: newPlace,
+        deadline: newDeadline
     };
 
     await setDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config'), newSettings, { merge: true });
+    
+    // LOGGING
+    logAction("CONFIG_CHANGE", `Event details updated: ${newName || 'Untitled'} @ ${newPlace || 'No Loc'}`);
+
     showToast("Settings Saved", "Event details updated for everyone.");
 });
 
@@ -1606,6 +1842,18 @@ if (trayToggle && contactTray) {
             document.getElementById('star-container').classList.remove('content-blur');
         }
     });
+
+    // HELP TRAY LOGGING
+    const helpButtons = contactTray.querySelectorAll('a');
+    helpButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const card = btn.closest('.contact-card');
+            const contactName = card ? card.querySelector('.contact-name').textContent : "Unknown";
+            const method = btn.classList.contains('whatsapp-btn-small') ? "WhatsApp" : "Call";
+            
+            logAction("HELP_CALL", `Contacted ${contactName} via ${method}`);
+        });
+    });
 }
 
 if ("serviceWorker" in navigator) {
@@ -1636,7 +1884,114 @@ if (!navigator.onLine) {
 }
 
 // ==========================================
-// 18. ADMIN HELPER FUNCTION (For Console)
+// 18. LOGS UI LOGIC (ADMIN ONLY)
+// ==========================================
+
+// Fetch logs when button clicked
+if (refreshLogsBtn) {
+    refreshLogsBtn.addEventListener('click', () => {
+        const icon = refreshLogsBtn.querySelector('i');
+        icon.classList.add('fa-spin');
+        fetchAndRenderLogs().finally(() => {
+            setTimeout(() => icon.classList.remove('fa-spin'), 500);
+        });
+    });
+}
+
+if (filterLogsTypeBtn) {
+    filterLogsTypeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        filterLogsDropdown.classList.toggle('show');
+    });
+}
+
+if (searchLogsInput) {
+    searchLogsInput.addEventListener('input', () => {
+        renderLogsTable(); // Local filter
+    });
+}
+
+async function fetchAndRenderLogs() {
+    if(!currentUser) return;
+    activityLogsTable.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">Syncing logs...</td></tr>';
+    
+    try {
+        // Fetch last 50 logs
+        const q = query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'), limit(50));
+        const snapshot = await getDocs(q);
+        
+        allActivityLogs = [];
+        snapshot.forEach(doc => {
+            allActivityLogs.push({ id: doc.id, ...doc.data() });
+        });
+        
+        renderLogsTable();
+        
+    } catch (e) {
+        console.error("Error fetching logs:", e);
+        activityLogsTable.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#ef4444;">Error loading logs. Check permissions.</td></tr>';
+    }
+}
+
+function renderLogsTable() {
+    const term = searchLogsInput.value.toLowerCase().trim();
+    
+    const filtered = allActivityLogs.filter(log => {
+        // Filter Type
+        if (currentLogFilter !== 'all' && log.action !== currentLogFilter) return false;
+        
+        // Filter Search (User, Action, or Details)
+        const combinedString = `${log.username} ${log.action} ${log.details}`.toLowerCase();
+        if (!combinedString.includes(term)) return false;
+        
+        return true;
+    });
+    
+    activityLogsTable.innerHTML = '';
+    
+    if (filtered.length === 0) {
+        activityLogsTable.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#666;">No matching records found.</td></tr>';
+        return;
+    }
+    
+    filtered.forEach(log => {
+        const tr = document.createElement('tr');
+        
+        // Format Time
+        const dateObj = new Date(log.timestamp);
+        const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        // Action Badge Class
+        const badgeClass = `log-action-${log.action}` in getClassMap() ? `log-action-${log.action}` : 'log-action-DEFAULT';
+        
+        tr.innerHTML = `
+            <td style="font-size: 0.8rem; color: #888; white-space: nowrap;">${dateStr}</td>
+            <td style="font-weight: 500; color: white;">${log.username}</td>
+            <td><span class="log-action-badge ${badgeClass}">${log.action.replace('_', ' ')}</span></td>
+            <td style="font-size: 0.85rem; color: #ccc;">${log.details}</td>
+        `;
+        activityLogsTable.appendChild(tr);
+    });
+}
+
+// Helper to check CSS classes without DOM query
+function getClassMap() {
+    return {
+        'log-action-LOGIN': true,
+        'log-action-TICKET_CREATE': true,
+        'log-action-SCAN_ENTRY': true,
+        'log-action-CONFIG_CHANGE': true,
+        'log-action-HELP_CALL': true,
+        // NEW RED ACTIONS
+        'log-action-TICKET_DELETE': true,
+        'log-action-FACTORY_RESET': true,
+        'log-action-LOCK_ACTION': true
+    };
+}
+
+
+// ==========================================
+// 19. ADMIN HELPER FUNCTION (For Console)
 // ==========================================
 window.createStaffUser = async function(username, realName, role) {
     if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
