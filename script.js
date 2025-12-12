@@ -34,6 +34,7 @@ const MANAGED_USERS = [
 
 // User & Auth State
 let currentUser = null;
+let currentUsername = null; // New global for Step 2 Verification
 let currentDeviceId = null;
 
 // Firestore Unsubscribers
@@ -54,9 +55,9 @@ let selectedTicketIds = new Set();
 let eventSettings = { name: '', place: '', deadline: '' };
 
 // Admin/Security State
-let remoteLockedTabs = []; // Tabs locked for this user
-let selectedUserForConfig = null; // Admin selection
-let managedUsersDeviceCache = {}; // Cache for instant admin updates
+let remoteLockedTabs = []; 
+let selectedUserForConfig = null; 
+let managedUsersDeviceCache = {}; 
 
 // UI State
 let searchTerm = '';
@@ -64,7 +65,7 @@ let currentFilter = 'all';
 let currentGenderFilter = 'all';
 let currentSort = 'newest';
 let isSelectionMode = false;
-let isCooldown = false; // For scanner
+let isCooldown = false; 
 
 // ==========================================
 // 3. DOM ELEMENT SELECTION
@@ -81,6 +82,13 @@ const loginButton = document.getElementById('loginButton');
 const authError = document.getElementById('auth-error');
 const userEmailDisplay = document.getElementById('userEmailDisplay');
 const logoutBtn = document.getElementById('logoutBtn');
+
+// Gatekeeper Elements
+const usernameGatekeeperModal = document.getElementById('username-gatekeeper-modal');
+const gatekeeperUsernameInput = document.getElementById('gatekeeperUsernameInput');
+const gatekeeperSubmitBtn = document.getElementById('gatekeeperSubmitBtn');
+const gatekeeperError = document.getElementById('gatekeeper-error');
+const gatekeeperLogoutBtn = document.getElementById('gatekeeperLogoutBtn');
 
 // Navigation
 const navButtons = document.querySelectorAll('.nav-btn');
@@ -187,12 +195,14 @@ function startHeartbeat(userEmail) {
 }
 
 async function updateHeartbeat(userEmail) {
-    if (!navigator.onLine) return; // Don't try to heartbeat if offline
+    if (!navigator.onLine) return; 
     try {
         const deviceRef = doc(db, 'global_presence', userEmail, 'devices', currentDeviceId);
+        // Added username to heartbeat for admin tracking
         await setDoc(deviceRef, {
             lastSeen: Date.now(),
-            userAgent: navigator.userAgent
+            userAgent: navigator.userAgent,
+            username: currentUsername || 'unknown' 
         }, { merge: true });
     } catch (e) {
         console.warn("Heartbeat update skipped");
@@ -206,59 +216,126 @@ async function updateHeartbeat(userEmail) {
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // --- LOGGED IN ---
+        // --- STEP 1: FIREBASE LOGIN SUCCESS ---
         currentUser = user;
-        userEmailDisplay.textContent = user.email;
-        
         loadingScreen.style.display = 'none';
         loginOverlay.style.display = 'none';
-        appContent.style.display = 'block';
-        
-        // 1. Setup Shared Data Listeners (PRIORITY)
-        setupRealtimeListeners();
-        
-        // 2. Start Presence Heartbeat
-        startHeartbeat(user.email);
 
-        // 3. Conditional Setup based on Role
         if (user.email === ADMIN_EMAIL) {
-            setupAdminPanel();
-            initGlobalSecurity(); // Initialize both Factory and Lock passwords
-            remoteLockedTabs = []; 
+            // ADMIN: Bypass Gatekeeper
+            currentUsername = "ADMIN";
+            initializeAppSession();
         } else {
-            // Updated to handle errors
-            listenForRemoteLocks(user.email);
-            adminLockPanel.style.display = 'none';
-            userLockStatus.style.display = 'block';
+            // STAFF: Show Gatekeeper
+            appContent.style.display = 'none'; // Hide app
+            usernameGatekeeperModal.style.display = 'flex'; // Show modal
+            gatekeeperUsernameInput.value = '';
+            gatekeeperUsernameInput.focus();
         }
-
-        // 4. Start Auto-Sync
-        if(autoCheckInterval) clearInterval(autoCheckInterval);
-        autoCheckInterval = setInterval(performSync, 30000); // 30 seconds
-        
-        // Initial Check for Online Status
-        updateNetworkStatus();
-        showToast("Connected", "Synced to Shared Event Database");
 
     } else {
         // --- LOGGED OUT ---
-        currentUser = null;
-        
+        resetAppState();
         loadingScreen.style.display = 'none';
         loginOverlay.style.display = 'flex';
         appContent.style.display = 'none';
-        
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        if (adminUiRefreshInterval) clearInterval(adminUiRefreshInterval);
-        
-        if (ticketsUnsubscribe) ticketsUnsubscribe();
-        if (settingsUnsubscribe) settingsUnsubscribe();
-        if (lockUnsubscribe) lockUnsubscribe();
-        
-        adminPresenceUnsubscribes.forEach(unsub => unsub());
-        adminPresenceUnsubscribes = [];
+        usernameGatekeeperModal.style.display = 'none';
     }
 });
+
+// --- GATEKEEPER LOGIC (Step 2) ---
+
+gatekeeperSubmitBtn.addEventListener('click', async () => {
+    const inputUsername = gatekeeperUsernameInput.value.trim();
+    if (!inputUsername) return;
+
+    gatekeeperSubmitBtn.textContent = "Verifying...";
+    gatekeeperSubmitBtn.disabled = true;
+    gatekeeperError.style.display = 'none';
+
+    try {
+        // Check Firestore for username
+        const userDocRef = doc(db, 'allowed_usernames', inputUsername);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Verify if the logged-in email matches the username's assigned email
+            if (userData.email && userData.email !== currentUser.email) {
+                throw new Error("Email mismatch");
+            }
+
+            // SUCCESS
+            currentUsername = inputUsername;
+            userEmailDisplay.textContent = `${userData.realName} (${inputUsername})`;
+            usernameGatekeeperModal.style.display = 'none';
+            
+            // Proceed to App Init
+            initializeAppSession();
+
+        } else {
+            throw new Error("Username not found");
+        }
+    } catch (error) {
+        console.error("Gatekeeper error:", error);
+        gatekeeperError.textContent = "Invalid username or account mismatch.";
+        gatekeeperError.style.display = 'block';
+    } finally {
+        gatekeeperSubmitBtn.textContent = "Verify Identity";
+        gatekeeperSubmitBtn.disabled = false;
+    }
+});
+
+gatekeeperLogoutBtn.addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.reload();
+});
+
+// --- INITIALIZE MAIN APP ---
+
+function initializeAppSession() {
+    appContent.style.display = 'block';
+    
+    // 1. Setup Data Listeners
+    setupRealtimeListeners();
+    
+    // 2. Start Presence Heartbeat (Now includes username)
+    startHeartbeat(currentUser.email);
+
+    // 3. Conditional Setup
+    if (currentUser.email === ADMIN_EMAIL) {
+        setupAdminPanel();
+        initGlobalSecurity(); 
+        remoteLockedTabs = []; 
+        userEmailDisplay.textContent = "Administrator";
+    } else {
+        listenForRemoteLocks(currentUser.email); // Uses email for fetching lock doc
+        adminLockPanel.style.display = 'none';
+        userLockStatus.style.display = 'block';
+    }
+
+    // 4. Start Auto-Sync
+    if(autoCheckInterval) clearInterval(autoCheckInterval);
+    autoCheckInterval = setInterval(performSync, 30000); 
+    
+    updateNetworkStatus();
+    showToast("Welcome", `Logged in as ${currentUsername}`);
+}
+
+function resetAppState() {
+    currentUser = null;
+    currentUsername = null;
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    if (adminUiRefreshInterval) clearInterval(adminUiRefreshInterval);
+    if (ticketsUnsubscribe) ticketsUnsubscribe();
+    if (settingsUnsubscribe) settingsUnsubscribe();
+    if (lockUnsubscribe) lockUnsubscribe();
+    adminPresenceUnsubscribes.forEach(unsub => unsub());
+    adminPresenceUnsubscribes = [];
+}
+
+// --- STANDARD LOGIN ---
 
 loginButton.addEventListener('click', async () => {
     const email = emailInput.value;
@@ -290,16 +367,11 @@ function showError(msg) {
     loginButton.disabled = false;
 }
 
-// ------------------------------------------------------------------
-// UPDATED: Await signOut to ensure session clears before reload
-// ------------------------------------------------------------------
 logoutBtn.addEventListener('click', async () => {
     try {
         await signOut(auth);
         window.location.reload();
     } catch (error) {
-        console.error("Logout failed", error);
-        // Fallback reload if signOut errors (rare)
         window.location.reload();
     }
 });
@@ -329,12 +401,12 @@ function setupAdminPanel() {
     MANAGED_USERS.forEach(user => {
         const devicesRef = collection(db, 'global_presence', user.email, 'devices');
         const unsub = onSnapshot(devicesRef, (snapshot) => {
-            const timestamps = [];
+            const deviceData = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                if(data.lastSeen) timestamps.push(data.lastSeen);
+                if(data.lastSeen) deviceData.push(data);
             });
-            managedUsersDeviceCache[user.email] = timestamps;
+            managedUsersDeviceCache[user.email] = deviceData;
             renderManagedUsersList();
         });
         adminPresenceUnsubscribes.push(unsub);
@@ -382,20 +454,31 @@ function renderManagedUsersList() {
             if (card.classList.contains('active-selection')) card.classList.remove('active-selection');
         }
 
-        const timestamps = managedUsersDeviceCache[email] || [];
+        const deviceData = managedUsersDeviceCache[email] || [];
         let activeDevices = 0;
-        timestamps.forEach(ts => {
-            if (now - ts < 30000) activeDevices++;
+        let activeUsernames = new Set();
+
+        deviceData.forEach(d => {
+            if (now - d.lastSeen < 30000) {
+                activeDevices++;
+                if (d.username && d.username !== 'unknown') activeUsernames.add(d.username);
+            }
         });
 
         const isOnline = activeDevices > 0;
         const statusEl = card.querySelector(`[data-status-target="${email}"]`);
-        const newClass = isOnline ? 'online' : '';
-        const newText = isOnline ? `<span class="status-dot-pulse"></span>Online • ${activeDevices} Device${activeDevices > 1 ? 's' : ''}` : 'Offline';
+        
+        let statusText = 'Offline';
+        if (isOnline) {
+            const userList = Array.from(activeUsernames).join(', ');
+            statusText = `<span class="status-dot-pulse"></span>Online: ${userList || 'Unknown'}`;
+        }
 
+        const newClass = isOnline ? 'online' : '';
         const baseClass = 'user-status-indicator';
+        
         if (statusEl.className !== `${baseClass} ${newClass}`.trim()) statusEl.className = `${baseClass} ${newClass}`.trim();
-        if (statusEl.innerHTML !== newText) statusEl.innerHTML = newText;
+        if (statusEl.innerHTML !== statusText) statusEl.innerHTML = statusText;
     });
 }
 
@@ -490,11 +573,10 @@ confirmAdminLock.addEventListener('click', async () => {
     confirmAdminLock.disabled = true;
 
     try {
-        // 1. Verify Password from Global DB with Fallback
         const secRef = doc(db, 'admin_settings', 'security');
         const docSnap = await getDoc(secRef);
         
-        let storedPassword = 'admin123'; // DEFAULT FALLBACK
+        let storedPassword = 'admin123'; 
         if (docSnap.exists() && docSnap.data().remoteLockPassword) {
             storedPassword = docSnap.data().remoteLockPassword;
         }
@@ -506,7 +588,6 @@ confirmAdminLock.addEventListener('click', async () => {
             return;
         }
 
-        // 2. Password Correct -> Proceed to Sync Locks
         const lockedTabs = [];
         remoteLockCheckboxes.forEach(cb => {
             if (cb.checked) lockedTabs.push(cb.value);
@@ -537,7 +618,6 @@ confirmAdminLock.addEventListener('click', async () => {
 // SECURITY INITIALIZATION & FACTORY RESET
 // ========================================================
 
-// Initialize passwords in DB if missing (Self-healing)
 async function initGlobalSecurity() {
     try {
         const secRef = doc(db, 'admin_settings', 'security');
@@ -603,7 +683,6 @@ if (confirmFactoryReset) {
             const secRef = doc(db, 'admin_settings', 'security');
             const docSnap = await getDoc(secRef);
             
-            // LOGIC UPDATE: Use Fallback 'admin123' if DB entry is missing
             let storedPassword = 'admin123'; 
             if (docSnap.exists() && docSnap.data().factoryResetPassword) {
                 storedPassword = docSnap.data().factoryResetPassword;
@@ -618,22 +697,18 @@ if (confirmFactoryReset) {
 
             confirmFactoryReset.textContent = "WIPING DATABASE...";
             
-            // 1. Delete tickets
             const ticketsQ = query(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'));
             const tSnap = await getDocs(ticketsQ);
             const tPromises = tSnap.docs.map(d => deleteDoc(d.ref));
             await Promise.all(tPromises);
 
-            // 2. Delete app configuration
             await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config'));
 
-            // 3. Delete locks
             const locksQ = query(collection(db, 'global_locks'));
             const lSnap = await getDocs(locksQ);
             const lPromises = lSnap.docs.map(d => deleteDoc(d.ref));
             await Promise.all(lPromises);
             
-            // 4. Delete Security Settings (Triggers fallback on next load/action)
             await deleteDoc(doc(db, 'admin_settings', 'security'));
 
             showToast("SYSTEM RESET", "Database has been completely erased.");
@@ -655,8 +730,6 @@ if (confirmFactoryReset) {
 
 function listenForRemoteLocks(userEmail) {
     const lockRef = doc(db, 'global_locks', userEmail);
-    
-    // UPDATED: Added Error Handling for Non-Admin Listener
     if (lockUnsubscribe) lockUnsubscribe();
     
     lockUnsubscribe = onSnapshot(lockRef, (doc) => {
@@ -667,9 +740,7 @@ function listenForRemoteLocks(userEmail) {
             applyRemoteLocks([]); 
         }
     }, (error) => {
-        console.warn("Lock listener failed (Non-critical):", error);
-        // We don't block the UI here, just log it.
-        // If this fails, user defaults to NO locks, which is safe for usability.
+        console.warn("Lock listener failed:", error);
     });
 }
 
@@ -793,15 +864,12 @@ navButtons.forEach(button => {
     });
 });
 
-// IMPORTANT: Using SHARED_DATA_ID so all users see the SAME data
 function setupRealtimeListeners() {
-    if (!navigator.onLine) return; // Guard against offline init
+    if (!navigator.onLine) return; 
 
-    // 1. Listen for Shared Tickets
     const ticketsRef = collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets');
     const q = query(ticketsRef);
     
-    // Clear old listener if exists
     if(ticketsUnsubscribe) ticketsUnsubscribe();
 
     ticketsUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -812,13 +880,11 @@ function setupRealtimeListeners() {
         renderBookedTickets();
     }, (error) => {
         console.error("Ticket listener failed:", error);
-        // Only show toast if it's a permission error, not a network error (which is handled globally)
         if (error.code !== 'unavailable') {
              showToast("Database Permission Error", "Update Firestore Rules to allow access.");
         }
     });
 
-    // 2. Listen for Shared Settings
     const settingsRef = doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config');
     
     if(settingsUnsubscribe) settingsUnsubscribe();
@@ -833,9 +899,6 @@ function setupRealtimeListeners() {
     });
 }
 
-// -------------------------------------------------------------
-// UPDATED PERFORM SYNC: Checks Deadline & Auto-Marks Absent
-// -------------------------------------------------------------
 async function performSync() {
     if(!currentUser || !navigator.onLine) return;
     
@@ -846,10 +909,8 @@ async function performSync() {
     }
     const startTime = Date.now();
     try {
-        // Re-establish listeners just in case
         setupRealtimeListeners();
 
-        // 1. Fetch latest data
         const ticketsRef = collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets');
         const q = query(ticketsRef);
         const snapshot = await getDocs(q);
@@ -858,25 +919,17 @@ async function performSync() {
             bookedTickets.push({ id: doc.id, ...doc.data() });
         });
         
-        // 2. NEW: Check Deadline Logic
         if (eventSettings.deadline) {
             const deadlineTimestamp = new Date(eventSettings.deadline).getTime();
             const now = Date.now();
             
-            // Only update if deadline has passed
             if (now > deadlineTimestamp) {
-                // Find tickets that are still 'coming-soon'
                 const pendingAbsentees = bookedTickets.filter(t => t.status === 'coming-soon');
-                
                 if (pendingAbsentees.length > 0) {
-                    console.log(`Deadline passed. Marking ${pendingAbsentees.length} as absent.`);
-                    
-                    // Update Database for each ticket
                     const updatePromises = pendingAbsentees.map(t => {
                         const tRef = doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', t.id);
                         return updateDoc(tRef, { status: 'absent' });
                     });
-                    
                     await Promise.all(updatePromises);
                     showToast("Deadline Passed", `Marked ${pendingAbsentees.length} guests as Absent.`);
                 }
@@ -921,12 +974,11 @@ ticketForm.addEventListener('submit', async (e) => {
         phone: '+91' + phone,
         status: 'coming-soon',
         scanned: false,
-        createdBy: currentUser.email, // Tracking who created it
+        createdBy: currentUsername || currentUser.email, // Log username
         createdAt: Date.now()
     };
 
     try {
-        // Writing to SHARED_DATA_ID
         const docRef = await addDoc(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'), newTicket);
         updateTicketPreview({ ...newTicket, id: docRef.id });
         ticketForm.reset();
@@ -1171,7 +1223,6 @@ confirmDeleteBtn.addEventListener('click', async () => {
     if(pendingDeleteIds.length > 0) {
         confirmDeleteBtn.textContent = "Deleting...";
         for(const id of pendingDeleteIds) {
-            // Delete from SHARED_DATA_ID
             await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', id));
         }
         confirmModal.style.display = 'none';
@@ -1462,7 +1513,6 @@ async function validateTicket(ticketId) {
     
     if(ticket) {
         if(ticket.status === 'coming-soon' && !ticket.scanned) {
-            // Update in SHARED_DATA_ID
             await updateDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', ticketId), {
                 status: 'arrived',
                 scanned: true,
@@ -1504,9 +1554,7 @@ eventSettingsForm.addEventListener('submit', async (e) => {
         deadline: document.getElementById('arrivalDeadline').value
     };
 
-    // Save to SHARED_DATA_ID
-    const settingsRef = doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config');
-    await setDoc(settingsRef, newSettings, { merge: true });
+    await setDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config'), newSettings, { merge: true });
     showToast("Settings Saved", "Event details updated for everyone.");
 });
 
@@ -1573,7 +1621,6 @@ if ("serviceWorker" in navigator) {
 function updateNetworkStatus() {
     if (navigator.onLine) {
         if(syncStatusDot) syncStatusDot.classList.remove('offline');
-        // Re-trigger sync when back online
         if(currentUser) performSync();
     } else {
         if(syncStatusDot) syncStatusDot.classList.add('offline');
@@ -1584,7 +1631,35 @@ function updateNetworkStatus() {
 window.addEventListener('online', updateNetworkStatus);
 window.addEventListener('offline', updateNetworkStatus);
 
-// Initial check on load
 if (!navigator.onLine) {
     if(syncStatusDot) syncStatusDot.classList.add('offline');
 }
+
+// ==========================================
+// 18. ADMIN HELPER FUNCTION (For Console)
+// ==========================================
+window.createStaffUser = async function(username, realName, role) {
+    if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
+        console.error("Only Admin can create users.");
+        return;
+    }
+    
+    // Auto-detect email based on role for simplicity
+    let targetEmail = "";
+    if (role.toLowerCase().includes('event')) targetEmail = "eveman.test@gmail.com";
+    else if (role.toLowerCase().includes('reg')) targetEmail = "regdesk.test@gmail.com";
+    else if (role.toLowerCase().includes('sec')) targetEmail = "sechead.test@gmail.com";
+    else return console.error("Unknown role. Use 'Event Manager', 'Registration Desk', or 'Security Head'");
+
+    try {
+        await setDoc(doc(db, 'allowed_usernames', username), {
+            realName: realName,
+            role: role,
+            email: targetEmail,
+            createdAt: Date.now()
+        });
+        console.log(`%c SUCCESS: User '${username}' created for ${targetEmail}`, "color: #10b981; font-weight: bold;");
+    } catch (e) {
+        console.error("Error creating user:", e);
+    }
+};
