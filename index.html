@@ -41,7 +41,7 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Custom Delete Modal -->
+    <!-- Custom Delete Modal (Tickets) -->
     <div id="confirm-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Confirm Deletion</h3>
@@ -49,6 +49,18 @@
             <div class="modal-actions">
                 <button id="cancelDelete" class="modal-btn secondary">Cancel</button>
                 <button id="confirmDelete" class="modal-btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Delete Modal (Logs) -->
+    <div id="confirm-log-delete-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Confirm Log Deletion</h3>
+            <p>Are you sure you want to permanently remove <span id="delete-log-count" style="color: white; font-weight: bold;">0</span> activity logs?</p>
+            <div class="modal-actions">
+                <button id="cancelLogDelete" class="modal-btn secondary">Cancel</button>
+                <button id="confirmLogDelete" class="modal-btn danger">Delete</button>
             </div>
         </div>
     </div>
@@ -508,8 +520,10 @@
                                 <i class="fa-solid fa-arrows-rotate"></i>
                             </div>
                         </div>
-                        <div>
-                            <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 10px;">Full Audit Trail</span>
+                        <!-- NEW CONTROLS FOR LOGS -->
+                        <div class="booked-controls">
+                             <button id="selectLogsBtn" class="action-btn-small">Select</button>
+                             <button id="deleteLogsBtn" class="action-btn-small" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; display: none;">Delete</button>
                         </div>
                     </div>
 
@@ -536,11 +550,22 @@
                         </div>
                     </div>
 
+                    <!-- NEW LOGS SELECTION BAR -->
+                    <div class="logs-select-all-container" style="display: none; padding: 10px; background: rgba(255,255,255,0.05); margin-bottom: 15px; border-radius: 8px; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center;">
+                            <input type="checkbox" id="selectAllLogsCheckbox">
+                            <label for="selectAllLogsCheckbox" style="margin-left: 10px; font-size: 0.9rem;">Select All</label>
+                            <span id="logsSelectionCount" style="margin-left: 15px; color: var(--accent-secondary); font-size: 0.9rem;">(0 selected)</span>
+                        </div>
+                    </div>
+
                     <!-- Logs Table -->
                     <div class="table-container">
                         <table class="tickets-table">
                             <thead>
                                 <tr>
+                                    <!-- NEW CHECKBOX COLUMN HEADER (Hidden by default) -->
+                                    <th class="log-check-header" style="display: none; width: 40px;"></th>
                                     <th style="width: 160px;">Timestamp</th>
                                     <th>User</th>
                                     <th>Action</th>
@@ -548,7 +573,7 @@
                                 </tr>
                             </thead>
                             <tbody id="activityLogsTable">
-                                <tr><td colspan="4" style="text-align:center; padding: 30px; color: #666;">Loading activity logs...</td></tr>
+                                <tr><td colspan="5" style="text-align:center; padding: 30px; color: #666;">Loading activity logs...</td></tr>
                             </tbody>
                         </table>
                     </div>
