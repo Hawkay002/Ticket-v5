@@ -41,7 +41,7 @@ let currentDeviceId = null;
 // EASTER EGG AUDIO SETUP
 // TODO: Replace 'path_to_your_music.mp3' with your actual file!
 // ======================================================
-const easterEggAudio = new Audio('reelaudio-54143_eTFyu9mL.mp3'); 
+const easterEggAudio = new Audio('music.mp3'); 
 easterEggAudio.loop = true;
 
 // Firestore Unsubscribers
