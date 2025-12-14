@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"; 
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -601,7 +601,7 @@ async function fetchAndRenderUsernames(email) {
             const chip = document.createElement('div');
             chip.className = 'username-chip';
             chip.dataset.username = username;
-            chip.innerHTML = `<i class="fa-solid fa-user"></i> ${username}`;
+            chip.innerHTML = `<i 8="fa-solid fa-user"></i> ${username}`;
             
             chip.addEventListener('click', () => {
                 if (selectedUsernamesForLock.has(username)) {
@@ -2107,7 +2107,9 @@ function getClassMap() {
         'log-action-TICKET_DELETE': true,
         'log-action-FACTORY_RESET': true,
         'log-action-LOCK_ACTION': true,
-        'log-action-LOG_DELETE': true
+        'log-action-LOG_DELETE': true,
+        // RAINBOW ACTION
+        'log-action-EXPORT_DATA': true
     };
 }
 
