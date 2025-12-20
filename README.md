@@ -124,7 +124,7 @@ Each active device:
 
 ---
 
-## 🎟️ 6. Ticket Issuance and Distribution
+## 🎟️ 6. Ticket Issuance & Distribution
 
 ### ✍️ 6.1 Ticket Creation
 
