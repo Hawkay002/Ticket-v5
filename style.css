@@ -141,6 +141,7 @@ button {
     margin-top: 2px;
 }
 
+/* --- UPDATED: User Status Indicator (Tooltip Removed) --- */
 .user-status-indicator {
     display: flex;
     align-items: center;
@@ -148,13 +149,13 @@ button {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    padding: 6px 12px; /* Slightly increased padding */
+    padding: 6px 12px; 
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.05);
     color: #666;
     border: 1px solid transparent;
-    flex-shrink: 0;      /* Prevents squishing */
-    white-space: nowrap; /* Prevents text wrapping */
+    flex-shrink: 0;      
+    white-space: nowrap; 
 }
 
 .user-status-indicator.online {
@@ -169,7 +170,7 @@ button {
     background-color: currentColor;
     border-radius: 50%;
     animation: pulseDot 1.5s infinite;
-    flex-shrink: 0; /* Prevents dot from becoming an oval */
+    flex-shrink: 0; 
     display: inline-block;
 }
 
@@ -179,7 +180,7 @@ button {
     100% { opacity: 1; transform: scale(1); }
 }
 
-/* --- NEW: Username Selection Styles --- */
+/* --- Username Selection Styles --- */
 .username-list-container {
     display: flex;
     flex-wrap: wrap;
@@ -223,6 +224,38 @@ button {
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
     font-size: 0.7rem;
+}
+
+/* --- NEW: Online State for Username Chips --- */
+.username-chip.online {
+    border-color: var(--success-green);
+    color: var(--success-green);
+    background: rgba(16, 185, 129, 0.08); /* Very light green tint */
+}
+
+.username-chip.online:hover {
+    background: rgba(16, 185, 129, 0.15);
+}
+
+/* Glowing Green Dot for Online Chips */
+.username-chip.online::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background-color: var(--success-green);
+    border-radius: 50%;
+    margin-left: 6px;
+    box-shadow: 0 0 5px var(--success-green);
+    animation: pulseDot 2s infinite;
+}
+
+/* Special case: Selected AND Online */
+.username-chip.selected.online {
+    background: rgba(59, 130, 246, 0.25); /* Keep blue background for selection */
+    border-color: var(--success-green);    /* Keep green border to show status */
+    color: #fff;                           /* White text for better contrast on blue */
+    box-shadow: 0 0 0 1px var(--success-green); /* Extra glow to emphasize online status */
 }
 
 #selectAllUsernamesBtn {
@@ -1524,7 +1557,7 @@ tr:hover td {
     }
 }
 
-/* TOOLTIP STYLES */
+/* TOOLTIP STYLES (Kept from uploaded file, distinct from status tooltip) */
 .info-icon-wrapper {
     position: relative;
     cursor: help;
