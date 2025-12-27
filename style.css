@@ -1,4 +1,4 @@
-:root {
+:root { 
     --bg-deep: #050505;
     --bg-surface: #0f0f0f;
     --bg-card: rgba(20, 20, 20, 0.6); 
@@ -946,6 +946,13 @@ td {
     width: 1%; /* Trick: Makes the column shrink to fit content, but since content is nowrap, it expands to fit largest item */
 }
 
+/* NEW: TICKET TYPE COLUMN WIDTH */
+.tickets-table th:nth-child(4), 
+.tickets-table td:nth-child(4) {
+    width: 120px; 
+    text-align: center;
+}
+
 /* ACTIVITY LOGS TABLE SPECIFIC WIDTHS */
 /* Checkbox is col 1 (when visible), Timestamp col 2, User col 3, Action col 4, Details col 5 */
 
@@ -1011,6 +1018,48 @@ tr:hover td {
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+/* ============================ */
+/* NEW: TICKET TYPE BADGES      */
+/* ============================ */
+
+.type-badge {
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Classic Badge */
+.type-badge-Classic {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Diamond Badge (Silver/Holo) */
+.type-badge-Diamond {
+    background: linear-gradient(135deg, #e2e8f0 0%, #ffffff 50%, #94a3b8 100%);
+    color: #0f172a;
+    border: 1px solid #06b6d4;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+
+/* Gold Badge (Metallic) */
+.type-badge-Gold {
+    background: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7);
+    color: #3e2704;
+    border: 1px solid #fff;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+}
+
 
 /* NEW: LOG ACTION BADGES */
 .log-action-badge {
