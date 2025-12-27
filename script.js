@@ -1493,12 +1493,15 @@ ticketForm.addEventListener('submit', async (e) => {
     const gender = document.getElementById('gender').value;
     const age = document.getElementById('age').value;
     const phone = document.getElementById('phone').value;
+    // NEW: Capture Ticket Type
+    const ticketType = document.getElementById('ticketType').value; 
 
     const newTicket = {
         name,
         gender,
         age,
         phone: '+91' + phone,
+        ticketType: ticketType, // NEW: Save to DB
         status: 'coming-soon',
         scanned: false,
         createdBy: currentUsername || currentUser.email, // Log username
@@ -1526,6 +1529,15 @@ function updateTicketPreview(ticket) {
     document.getElementById('ticketPhone').textContent = ticket.phone;
     document.getElementById('ticketSerial').textContent = `ID: ${ticket.id}`;
     
+    // NEW: Update Header Text
+    const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
+    document.getElementById('ticketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
+
+    // NEW: Apply Theme Class
+    const template = document.getElementById('ticketTemplate');
+    template.className = ''; // Reset classes
+    template.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
+
     const qrcodeContainer = document.getElementById('qrcode');
     qrcodeContainer.innerHTML = '';
     new QRCode(qrcodeContainer, {
@@ -1934,6 +1946,15 @@ function openTicketModal(ticket) {
     document.getElementById('modalTicketPhone').textContent = ticket.phone;
     document.getElementById('modalTicketSerial').textContent = `ID: ${ticket.id}`;
     
+    // NEW: Update Header Text in Modal
+    const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
+    document.getElementById('modalTicketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
+
+    // NEW: Apply Theme Class in Modal
+    const modalTemplate = document.getElementById('modalTicketTemplate');
+    modalTemplate.className = ''; // Reset
+    modalTemplate.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
+
     const modalQrcodeContainer = document.getElementById('modalQrcode');
     modalQrcodeContainer.innerHTML = '';
     new QRCode(modalQrcodeContainer, {
