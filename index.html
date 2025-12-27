@@ -229,7 +229,7 @@
                 <div id="modalTicketTemplate">
                     <div class="ticket-content-wrapper">
                         <div class="ticket-header">
-                            <h3>Entry Pass</h3>
+                            <h3 id="modalTicketTitleHeader">Entry Pass</h3>
                             <p id="modalEventNamePlace">--</p>
                         </div>
                         <div class="ticket-body">
@@ -336,6 +336,13 @@
                         <h2>New Guest Entry</h2>
                         <form id="ticketForm">
                             <input type="text" id="name" class="premium-input" placeholder="Full Name" required>
+                            
+                            <select id="ticketType" class="premium-input" required>
+                                <option value="Classic" selected>Classic (Standard)</option>
+                                <option value="VIP">VIP (Gold)</option>
+                                <option value="VVIP">VVIP (Diamond)</option>
+                            </select>
+
                             <div style="display: flex; gap: 10px;">
                                 <select id="gender" class="premium-input" style="flex: 1;" required>
                                     <option value="" disabled selected>Gender</option>
@@ -354,7 +361,7 @@
                         <div id="ticketTemplate">
                             <div class="ticket-content-wrapper">
                                 <div class="ticket-header">
-                                    <h3>Entry Pass</h3>
+                                    <h3 id="ticketTitleHeader">Entry Pass</h3>
                                     <p id="eventNamePlace">Event Details Loading...</p>
                                 </div>
                                 <div class="ticket-body">
