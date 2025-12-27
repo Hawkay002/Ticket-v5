@@ -339,11 +339,10 @@
                             <input type="text" id="name" class="premium-input" placeholder="Full Name" required>
                             
                             <!-- UPDATED: Ticket Type Dropdown -->
-                            <!-- VVIP -> Gold as requested -->
                             <select id="ticketType" class="premium-input" required>
-                                <option value="Classic" selected>Classic (Standard)</option>
-                                <option value="Diamond">VIP (Silver)</option>
-                                <option value="Gold">VVIP (Gold)</option>
+                                <option value="Classic" selected>Classic</option>
+                                <option value="Diamond">VIP</option>
+                                <option value="Gold">VVIP</option>
                             </select>
 
                             <div style="display: flex; gap: 10px;">
@@ -425,6 +424,15 @@
                                 <i class="fa-solid fa-filter"></i> Filter / Sort
                             </button>
                             <div id="filterDropdown" class="filter-dropdown">
+                                <!-- UPDATED: NEW Ticket Type Filter -->
+                                <div class="dropdown-header">Filter Ticket Type</div>
+                                <div class="dropdown-item selected" data-type="filter-ticket" data-val="all">All Types</div>
+                                <div class="dropdown-item" data-type="filter-ticket" data-val="Classic">Classic Only</div>
+                                <div class="dropdown-item" data-type="filter-ticket" data-val="Diamond">VIP</div>
+                                <div class="dropdown-item" data-type="filter-ticket" data-val="Gold">VVIP</div>
+
+                                <div class="dropdown-divider"></div>
+
                                 <div class="dropdown-header">Filter Status</div>
                                 <div class="dropdown-item selected" data-type="filter" data-val="all">All Guests</div>
                                 <div class="dropdown-item" data-type="filter" data-val="arrived">Arrived Only</div>
@@ -471,6 +479,8 @@
                                     <th></th>
                                     <th style="width: 50px; text-align: center;">#</th>
                                     <th class="guest-name-col">Guest Name</th>
+                                    <!-- UPDATED: New Column for Ticket Type -->
+                                    <th>Ticket Type</th>
                                     <th>Details</th>
                                     <th>Contact</th>
                                     <th>Ticket ID</th>
@@ -479,7 +489,7 @@
                                 </tr>
                             </thead>
                             <tbody id="bookedTicketsTable">
-                                <tr><td colspan="8" style="text-align:center; padding: 30px; color: #666;">Loading data...</td></tr>
+                                <tr><td colspan="9" style="text-align:center; padding: 30px; color: #666;">Loading data...</td></tr>
                             </tbody>
                         </table>
                     </div>
