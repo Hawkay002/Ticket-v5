@@ -1787,3 +1787,121 @@ tr:hover td {
 .lock-popup-content.theme-maintenance-over h3 { 
     color: var(--success-green); 
 }
+
+/* ============================ */
+/* TICKET THEMES */
+/* ============================ */
+
+/* --- CLASSIC (Default Black) --- */
+.ticket-theme-Classic .ticket-content-wrapper {
+    background: 
+        radial-gradient(circle at bottom left, transparent 15px, #000 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, #000 16px) bottom right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    border-top: 4px solid #3b82f6; 
+}
+.ticket-theme-Classic .ticket-footer {
+    background: 
+        radial-gradient(circle at top left, transparent 15px, #080808 16px) top left,
+        radial-gradient(circle at top right, transparent 15px, #080808 16px) top right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    color: #555;
+}
+
+/* --- VIP (Gold Metallic) --- */
+.ticket-theme-VIP .ticket-content-wrapper {
+    background: 
+        radial-gradient(circle at bottom left, transparent 15px, #d4af37 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, #d4af37 16px) bottom right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    /* Gold Gradient Texture */
+    background-image: 
+        radial-gradient(circle at bottom left, transparent 15px, rgba(0,0,0,0) 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, rgba(0,0,0,0) 16px) bottom right,
+        linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+    color: #3e2704; /* Dark gold/brown text */
+    border-top: 4px solid #fff;
+    border: none;
+}
+.ticket-theme-VIP .ticket-header h3,
+.ticket-theme-VIP .ticket-value {
+    color: #3e2704;
+    text-shadow: 0px 1px 0px rgba(255,255,255,0.4);
+}
+.ticket-theme-VIP .ticket-label, 
+.ticket-theme-VIP .ticket-header p {
+    color: #6d4c13;
+}
+.ticket-theme-VIP .ticket-footer {
+    background: 
+        radial-gradient(circle at top left, transparent 15px, #b38728 16px) top left,
+        radial-gradient(circle at top right, transparent 15px, #b38728 16px) top right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    background-color: #b38728;
+    color: #3e2704;
+    font-weight: bold;
+    border: none;
+}
+.ticket-theme-VIP .serial-pill {
+    background: rgba(0,0,0,0.1);
+    color: #3e2704;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+/* --- VVIP (Diamond / Silver Holographic) --- */
+.ticket-theme-VVIP .ticket-content-wrapper {
+    background: 
+        radial-gradient(circle at bottom left, transparent 15px, #e2e8f0 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, #e2e8f0 16px) bottom right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    /* Diamond/Silver Gradient */
+    background-image: 
+        radial-gradient(circle at bottom left, transparent 15px, rgba(0,0,0,0) 16px) bottom left,
+        radial-gradient(circle at bottom right, transparent 15px, rgba(0,0,0,0) 16px) bottom right,
+        linear-gradient(125deg, #e2e8f0 0%, #ffffff 40%, #94a3b8 100%);
+    color: #0f172a;
+    border-top: 4px solid #06b6d4; /* Cyan accent */
+    border: none;
+}
+/* Diamond texture overlay */
+.ticket-theme-VVIP .ticket-content-wrapper::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: radial-gradient(#0f172a 1px, transparent 1px);
+    background-size: 10px 10px;
+    opacity: 0.05;
+    pointer-events: none;
+}
+.ticket-theme-VVIP .ticket-header h3,
+.ticket-theme-VVIP .ticket-value {
+    color: #0f172a;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+.ticket-theme-VVIP .ticket-label,
+.ticket-theme-VVIP .ticket-header p {
+    color: #334155;
+}
+.ticket-theme-VVIP .ticket-footer {
+    background: 
+        radial-gradient(circle at top left, transparent 15px, #cbd5e1 16px) top left,
+        radial-gradient(circle at top right, transparent 15px, #cbd5e1 16px) top right;
+    background-size: 51% 100%;
+    background-repeat: no-repeat;
+    background-color: #cbd5e1;
+    color: #0f172a;
+    font-weight: bold;
+    border: none;
+}
+.ticket-theme-VVIP .serial-pill {
+    background: #0f172a;
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
