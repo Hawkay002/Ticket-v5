@@ -1,6 +1,6 @@
 :root {
     --bg-deep: #050505;
-    --bg-surface: #0f0f0f;
+    --bg-surface: #0f0f0f; 
     --bg-card: rgba(20, 20, 20, 0.6); 
     --border-subtle: rgba(255, 255, 255, 0.08);
     --text-main: #ffffff;
