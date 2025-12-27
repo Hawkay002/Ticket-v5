@@ -8,8 +8,6 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0f0f0f">
 
-    <!-- link preview -->
-
     <meta name="description" content="Secure real-time event logistics and entry management.">
 
     <meta property="og:type" content="website">
@@ -27,45 +25,35 @@
     <meta name="twitter:description" content="Real-time logistics, secure scanning, and remote device management.">
     <meta name="twitter:image" content="https://hawkay002.github.io/Ticket-v3/preview-banner.png">
     
-    <!-- Sound effects -->
     <link rel="preload" href="success.mp3" as="audio">
     <link rel="preload" href="error.mp3" as="audio">
     <link rel="preload" href="music.mp3" as="audio">
     
-    <!-- Link to external CSS -->
     <link rel="stylesheet" href="style.css">
     
-    <!-- Premium Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-    <!-- QR Code & Scanner Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </head>
 <body>
-    <!-- Star Background Container -->
     <div id="star-container"></div>
 
-    <!-- Loading Screen -->
     <div id="loading-screen">
         <div class="spinner"></div>
         <div class="loading-text">Initializing Secure Connection</div>
     </div>
 
-    <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Custom Delete Modal (Tickets) -->
     <div id="confirm-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Confirm Deletion</h3>
@@ -77,7 +65,6 @@
         </div>
     </div>
 
-    <!-- Custom Delete Modal (Logs) -->
     <div id="confirm-log-delete-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Confirm Log Deletion</h3>
@@ -89,12 +76,94 @@
         </div>
     </div>
 
-    <!-- Admin Lock Confirmation Modal -->
-    <div id="admin-lock-modal" class="modal-overlay">
-        <div class="modal-box">
-            <h3>Secure Remote User</h3>
-            <p>You are about to <span id="lock-modal-action-text">modify access</span> for <span id="lock-target-email" style="color: var(--accent-secondary);">--</span>.</p>
+    <div id="lock-reason-modal" class="modal-overlay" style="z-index: 6000; display: none;">
+        <div class="modal-box lock-popup-content">
+            <div class="lock-popup-header">
+                <div class="lock-icon-circle">
+                    <i id="lockPopupIcon" class="fa-solid fa-info"></i>
+                </div>
+                <h3 id="lockPopupTitle">Access Update</h3>
+            </div>
+
+            <div class="lock-popup-body">
+                <p id="lockPopupMessage">Some features have been restricted.</p>
+                
+                <div id="lockPopupDuration" class="lock-duration-box" style="display: none;">
+                    <i class="fa-regular fa-clock"></i> Est. Time: <span id="lockDurationText">--</span>
+                </div>
+
+                <div class="lock-help-text">
+                    P.S. If you believe this is a mistake, please contact the administrator or try refreshing.
+                </div>
+            </div>
+
+            <div class="lock-popup-checkbox-wrapper">
+                <label>
+                    <input type="checkbox" id="dontShowLockPopupAgain">
+                    Don't show again today
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <a href="tel:+918777845713" class="modal-btn secondary" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fa-solid fa-phone"></i> Contact Admin
+                </a>
+                <button id="lockPopupRefreshBtn" class="modal-btn" style="background: white; color: black;">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+            </div>
             
+            <button id="closeLockPopupBtn" class="close-modal-btn">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="admin-lock-modal" class="modal-overlay">
+        <div class="modal-box" style="max-width: 500px;">
+            <h3>Secure Remote User</h3>
+            <p style="margin-bottom: 15px;">Target: <span id="lock-target-email" style="color: var(--accent-secondary);">--</span></p>
+            
+            <div class="lock-reason-selector">
+                <label style="color: #aaa; font-size: 0.8rem; text-transform: uppercase; display: block; margin-bottom: 8px;">Select Lock Reason</label>
+                
+                <div class="reason-options">
+                    <label class="reason-option selected" data-value="basic">
+                        <input type="radio" name="lockReason" value="basic" checked>
+                        <span class="reason-icon basic"><i class="fa-solid fa-circle-info"></i></span>
+                        <span>Basic</span>
+                    </label>
+                    
+                    <label class="reason-option" data-value="maintenance">
+                        <input type="radio" name="lockReason" value="maintenance">
+                        <span class="reason-icon maintenance"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+                        <span>Maint.</span>
+                    </label>
+                    
+                    <label class="reason-option" data-value="suspension">
+                        <input type="radio" name="lockReason" value="suspension">
+                        <span class="reason-icon suspension"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                        <span>Review</span>
+                    </label>
+                </div>
+
+                <div id="maintenanceTimeInput" style="display: none; margin-top: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                    <label style="font-size: 0.8rem; color: #f59e0b; display: block; margin-bottom: 5px;">Estimated Duration</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="maintHours" class="premium-input" placeholder="Hrs" style="margin:0; padding: 8px;" min="0">
+                        <input type="number" id="maintMins" class="premium-input" placeholder="Mins" style="margin:0; padding: 8px;" min="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="preview-box-container" style="margin: 20px 0; border-top: 1px solid var(--border-subtle); padding-top: 15px;">
+                <label style="color: #666; font-size: 0.75rem; text-transform: uppercase; display: block; margin-bottom: 8px;">User Screen Preview</label>
+                <div id="lockPreviewBox" class="lock-preview-card basic">
+                    <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;">Role Update</div>
+                    <div style="font-size: 0.8rem; opacity: 0.8;">Certain tabs are restricted for your current role.</div>
+                </div>
+            </div>
+
             <div class="password-wrapper">
                 <input type="password" id="adminLockPassword" class="premium-input" placeholder="Confirm Admin Password" style="text-align: center;">
                 <i class="fa-regular fa-eye password-toggle-icon" id="toggleAdminLockPassword"></i>
@@ -107,7 +176,6 @@
         </div>
     </div>
 
-    <!-- NEW: Factory Reset Password Modal -->
     <div id="factory-reset-modal" class="modal-overlay">
         <div class="modal-box" style="border: 1px solid #ef4444; box-shadow: 0 20px 60px rgba(239, 68, 68, 0.2);">
             <h3 style="color: #ef4444;">⚠ DANGER ZONE</h3>
@@ -125,7 +193,6 @@
         </div>
     </div>
 
-    <!-- NEW: USERNAME GATEKEEPER MODAL -->
     <div id="username-gatekeeper-modal" class="modal-overlay" style="z-index: 2500; background: var(--bg-deep); display: none;">
         <div class="modal-box" style="border: 1px solid var(--accent-secondary); box-shadow: 0 0 50px rgba(59, 130, 246, 0.1);">
             <h3 style="color: var(--accent-secondary); margin-bottom: 10px;">Identity Verification</h3>
@@ -149,7 +216,6 @@
         </div>
     </div>
 
-    <!-- Ticket View Modal -->
     <div id="ticket-view-modal" class="modal-overlay">
         <div class="modal-box" style="padding: 0; background: transparent; box-shadow: none; border: none; max-width: 400px; width: 100%;">
             <div class="ticket-modal-content" style="background: var(--bg-deep); padding: 25px; border-radius: 24px; border: 1px solid var(--border-subtle); position: relative; box-shadow: 0 25px 50px rgba(0,0,0,0.8);">
@@ -201,7 +267,6 @@
         </div>
     </div>
 
-    <!-- Export Modal -->
     <div id="export-modal" class="modal-overlay">
         <div class="modal-box" style="max-width: 450px;">
             <h3>Export Data</h3>
@@ -236,7 +301,6 @@
             <p>Please verify your identity to continue.</p>
             <input type="email" id="emailInput" class="premium-input" placeholder="Administrator Email">
             
-            <!-- Password Field with Toggle Icon -->
             <div class="password-wrapper">
                 <input type="password" id="passwordInput" class="premium-input" placeholder="Password">
                 <i class="fa-regular fa-eye password-toggle-icon" id="togglePassword"></i>
@@ -261,7 +325,6 @@
                 <button class="nav-btn" data-tab="booked" id="nav-booked">Guest List</button>
                 <button class="nav-btn" data-tab="scanner" id="nav-scanner">Scanner</button>
                 <button class="nav-btn" data-tab="settings" id="nav-settings">Configuration</button>
-                <!-- NEW: Logs Button (Hidden by default, toggled via JS for Admin) -->
                 <button class="nav-btn" data-tab="logs" id="nav-logs" style="display: none;">Activity Logs</button>
             </nav>
         </header>
@@ -328,7 +391,6 @@
 
             <div id="booked" class="tab-content">
                 <div class="glass-panel" style="padding: 1.5rem;">
-                    <!-- HEADER SECTION WITH REFRESH ICON -->
                     <div style="display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h2 style="border: none; margin: 0; padding: 0;">Guest List</h2>
@@ -342,7 +404,6 @@
                         </div>
                     </div>
 
-                    <!-- SEARCH & FILTER BAR -->
                     <div class="search-filter-container">
                         <div class="search-box-wrapper">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -353,7 +414,6 @@
                                 <i class="fa-solid fa-filter"></i> Filter / Sort
                             </button>
                             <div id="filterDropdown" class="filter-dropdown">
-                                <!-- Status Filter -->
                                 <div class="dropdown-header">Filter Status</div>
                                 <div class="dropdown-item selected" data-type="filter" data-val="all">All Guests</div>
                                 <div class="dropdown-item" data-type="filter" data-val="arrived">Arrived Only</div>
@@ -362,7 +422,6 @@
                                 
                                 <div class="dropdown-divider"></div>
 
-                                <!-- Gender Filter -->
                                 <div class="dropdown-header">Filter Gender</div>
                                 <div class="dropdown-item selected" data-type="filter-gender" data-val="all">All Genders</div>
                                 <div class="dropdown-item" data-type="filter-gender" data-val="Male">Male Only</div>
@@ -371,7 +430,6 @@
 
                                 <div class="dropdown-divider"></div>
 
-                                <!-- Sort Order -->
                                 <div class="dropdown-header">Sort Order</div>
                                 <div class="dropdown-item selected" data-type="sort" data-val="newest">Newest First</div>
                                 <div class="dropdown-item" data-type="sort" data-val="oldest">Oldest First</div>
@@ -384,7 +442,6 @@
                         </div>
                     </div>
 
-                    <!-- Selection Mode Bar -->
                     <div class="select-all-container" style="display: none; padding: 10px; background: rgba(255,255,255,0.05); margin-bottom: 15px; border-radius: 8px; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center;">
                             <input type="checkbox" id="selectAllCheckbox">
@@ -453,7 +510,6 @@
                         <p style="font-size: 0.9rem; color: #888;"><strong>Time:</strong> <span id="currentDeadline" style="color: white;">--</span></p>
                     </div>
 
-                    <!-- ADMIN PANEL -->
                     <div id="admin-lock-panel" style="display: none; margin-top: 40px; border-top: 1px solid var(--border-subtle); padding-top: 30px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <h3 style="font-size: 1.2rem; color: white; margin: 0;">Remote Device Management</h3>
@@ -463,23 +519,18 @@
                             Monitor active sessions and lock specific tabs for staff members. 
                         </p>
                         
-                        <!-- List of Managed Users -->
                         <div id="managed-users-list" class="managed-users-grid">
-                            <!-- Populated by JS -->
                             <div style="padding: 20px; text-align: center; color: #666;">Loading staff status...</div>
                         </div>
 
-                        <!-- Configuration Area for Selected User -->
                         <div id="user-lock-config-area" style="display: none; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 16px; margin-top: 20px; border: 1px solid var(--border-subtle);">
                             
-                            <!-- UPDATED SECTION START -->
                             <h4 style="color: white; margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
                                 <i class="fa-solid fa-user-lock"></i> 
                                 Configuring:
                             </h4>
                             <div id="selected-user-email" style="color: var(--accent-secondary); font-size: 0.85rem; font-family: monospace; word-break: break-all; margin-bottom: 20px; padding-left: 28px;">--</div>
                             
-                            <!-- NEW: Username Selection -->
                             <div style="margin-bottom: 15px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                     <h5 style="color: #ccc; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin: 0;">
@@ -491,8 +542,6 @@
                                     <div style="color: #666; font-size: 0.8rem; font-style: italic; padding: 10px;">Select an email above to load associated usernames...</div>
                                 </div>
                             </div>
-                            <!-- UPDATED SECTION END -->
-                            
                             <h5 style="color: #ccc; margin-bottom: 10px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
                                 <i class="fa-solid fa-ban"></i> Restrict Tabs
                             </h5>
@@ -508,13 +557,11 @@
                                 </label>
                             </div>
 
-                            <!-- Modified Button: Removing inline styles to allow class-based color toggling -->
                             <button id="triggerLockModalBtn" class="premium-btn danger-mode">
                                 <i class="fa-solid fa-tower-broadcast"></i> <span id="triggerBtnText">Sync & Lock</span>
                             </button>
                         </div>
 
-                        <!-- NEW FACTORY RESET BUTTON -->
                         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-subtle); text-align: center;">
                             <button id="factoryResetBtn" class="premium-btn" style="background: transparent; border: 1px solid #ef4444; color: #ef4444; width: auto; display: inline-flex; font-size: 0.8rem; align-items: center; justify-content: center;">
                                 <i class="fa-solid fa-trash-can" style="margin-right: 8px;"></i> Factory Reset Database
@@ -522,7 +569,6 @@
                         </div>
                     </div>
 
-                    <!-- Non-Admin Message -->
                     <div id="user-lock-status" style="display: none; margin-top: 40px; border-top: 1px solid var(--border-subtle); padding-top: 30px; text-align: center;">
                         <h3 style="font-size: 1.1rem; color: #666; margin-bottom: 10px;">System Status</h3>
                         <p style="color: #444; font-size: 0.9rem;">
@@ -533,10 +579,8 @@
                 </div>
             </div>
 
-            <!-- NEW: Activity Logs Tab -->
             <div id="logs" class="tab-content">
                 <div class="glass-panel" style="padding: 1.5rem;">
-                    <!-- Header -->
                     <div style="display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h2 style="border: none; margin: 0; padding: 0;">Activity Logs</h2>
@@ -544,14 +588,12 @@
                                 <i class="fa-solid fa-arrows-rotate"></i>
                             </div>
                         </div>
-                        <!-- NEW CONTROLS FOR LOGS -->
                         <div class="booked-controls">
                              <button id="selectLogsBtn" class="action-btn-small">Select</button>
                              <button id="deleteLogsBtn" class="action-btn-small" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; display: none;">Delete</button>
                         </div>
                     </div>
 
-                    <!-- Log Filter Bar -->
                     <div class="search-filter-container">
                         <div class="search-box-wrapper">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -561,7 +603,6 @@
                             <button id="filterLogsTypeBtn" class="filter-btn">
                                 <i class="fa-solid fa-filter"></i> Type
                             </button>
-                            <!-- Dropdown for Log Types -->
                             <div id="filterLogsDropdown" class="filter-dropdown">
                                 <div class="dropdown-header">Filter by Action</div>
                                 <div class="dropdown-item selected" data-type="log-filter" data-val="all">All Actions</div>
@@ -579,7 +620,6 @@
                         </div>
                     </div>
 
-                    <!-- NEW LOGS SELECTION BAR -->
                     <div class="logs-select-all-container" style="display: none; padding: 10px; background: rgba(255,255,255,0.05); margin-bottom: 15px; border-radius: 8px; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center;">
                             <input type="checkbox" id="selectAllLogsCheckbox">
@@ -588,12 +628,10 @@
                         </div>
                     </div>
 
-                    <!-- Logs Table -->
                     <div class="table-container">
                         <table class="tickets-table">
                             <thead>
                                 <tr>
-                                    <!-- NEW CHECKBOX COLUMN HEADER (Hidden by default) -->
                                     <th class="log-check-header" style="display: none; width: 40px;"></th>
                                     <th style="width: 160px;">Timestamp</th>
                                     <th>User</th>
@@ -612,7 +650,6 @@
         </main>
     </div>
 
-    <!-- SIDE CONTACT TRAY -->
     <div id="contactTray" class="contact-tray">
         <div class="tray-handle" id="trayToggle">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
@@ -623,7 +660,6 @@
         <div class="tray-content">
             <h2 class="tray-heading">Quick Help Tray</h2>
             
-            <!-- 1. Admin/Dev -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Admin/Developer</h3>
@@ -641,7 +677,6 @@
                 </div>
             </div>
             
-            <!-- 2. Event Manager -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Event Manager</h3>
@@ -659,7 +694,6 @@
                 </div>
             </div>
 
-            <!-- 3. Registration Desk -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Registration Desk</h3>
@@ -677,7 +711,6 @@
                 </div>
             </div>
 
-            <!-- 4. Security Head -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Security Head</h3>
@@ -695,7 +728,6 @@
                 </div>
             </div>
 
-            <!-- 5. Medical Assistance -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Medical Support</h3>
@@ -713,7 +745,6 @@
                 </div>
             </div>
 
-            <!-- 6. Venue Coordinator -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Venue Coordinator</h3>
@@ -731,7 +762,6 @@
                 </div>
             </div>
 
-            <!-- 7. Catering Manager -->
             <div class="contact-section">
                 <div class="section-header-wrapper">
                     <h3>Catering Manager</h3>
@@ -751,7 +781,6 @@
         </div>
     </div>
 
-    <!-- Main Script File (Type=Module is essential for Firebase imports) -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
