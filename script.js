@@ -77,6 +77,7 @@ let selectedLogIds = new Set();
 // UI State
 let searchTerm = '';
 let currentFilter = 'all'; 
+let currentTicketTypeFilter = 'all'; 
 let currentGenderFilter = 'all';
 let currentSort = 'newest';
 let isSelectionMode = false;
@@ -1533,7 +1534,8 @@ function updateTicketPreview(ticket) {
     let typeText = "CLASSIC";
     const tType = ticket.ticketType || "Classic"; 
     
-    if(tType === "Diamond") typeText = "VIP";
+    // UPDATED: Diamond is now visually "Silver" so it gets the "VIP" label as requested.
+    if(tType === "Diamond") typeText = "VIP"; 
     else if(tType === "Gold") typeText = "VVIP";
     else typeText = "CLASSIC";
 
@@ -1621,6 +1623,8 @@ function renderBookedTickets() {
         if (!matchesSearch) return false;
         if (currentFilter !== 'all' && ticket.status !== currentFilter) return false;
         if (currentGenderFilter !== 'all' && ticket.gender !== currentGenderFilter) return false;
+        // NEW: TICKET TYPE FILTER
+        if (currentTicketTypeFilter !== 'all' && (ticket.ticketType || 'Classic') !== currentTicketTypeFilter) return false;
         return true;
     });
 
@@ -1634,7 +1638,7 @@ function renderBookedTickets() {
     currentFilteredTickets = displayTickets;
 
     if(displayTickets.length === 0) {
-        bookedTicketsTable.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color: #666;">No matching guests found.</td></tr>';
+        bookedTicketsTable.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 30px; color: #666;">No matching guests found.</td></tr>';
         return;
     }
 
@@ -1653,12 +1657,25 @@ function renderBookedTickets() {
             statusHtml += `<div style="font-size: 0.6rem; color: #888; white-space: nowrap;">${timeStr}</div>`;
         }
 
+        // NEW: Generate Ticket Type Badge
+        const tType = ticket.ticketType || 'Classic';
+        
+        // NEW: Map internal values to display names
+        let badgeText = "CLASSIC";
+        if (tType === "Gold") badgeText = "VVIP";
+        else if (tType === "Diamond") badgeText = "VIP";
+        else badgeText = "CLASSIC";
+
+        let typeBadgeHtml = `<span class="type-badge type-badge-${tType}">${badgeText}</span>`;
+
         const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
         
         tr.innerHTML = `
             <td style="display: ${checkboxDisplayStyle};"><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);" ${isChecked}></td>
             <td style="text-align: center; color: var(--accent-secondary); font-weight: bold;">${index + 1}</td>
             <td style="font-weight: 500; color: white;">${ticket.name}</td>
+            <!-- NEW: Ticket Type Column -->
+            <td style="text-align: center;">${typeBadgeHtml}</td>
             <td>${ticket.age} / ${ticket.gender}</td>
             <td>${ticket.phone}</td>
             <td style="font-family: monospace;">${ticket.id.substring(0, 8)}...</td>
@@ -1717,9 +1734,12 @@ document.querySelectorAll('.dropdown-item').forEach(item => {
 
         document.querySelectorAll(`.dropdown-item[data-type="${type}"]`).forEach(el => el.classList.remove('selected'));
         item.classList.add('selected');
+        
         if(type === 'filter') currentFilter = val;
         if(type === 'filter-gender') currentGenderFilter = val;
+        if(type === 'filter-ticket') currentTicketTypeFilter = val; // NEW: Handle ticket type
         if(type === 'sort') currentSort = val;
+        
         renderBookedTickets();
         filterDropdown.classList.remove('show');
     });
@@ -1848,11 +1868,13 @@ function downloadFile(uri, filename) {
 
 function exportCSV(data, filename) {
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "S.No.,Guest Name,Age,Gender,Phone,Status,Ticket ID,Entry Time\n";
+    // UPDATED: Added Ticket Type header
+    csvContent += "S.No.,Guest Name,Ticket Type,Age,Gender,Phone,Status,Ticket ID,Entry Time\n";
     data.forEach((row, index) => {
         const scannedTime = row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : "";
         const cleanName = row.name.replace(/,/g, ""); 
-        const rowStr = `${index + 1},${cleanName},${row.age},${row.gender},${row.phone},${row.status},${row.id},${scannedTime}`;
+        // UPDATED: Added row.ticketType
+        const rowStr = `${index + 1},${cleanName},${row.ticketType || 'Classic'},${row.age},${row.gender},${row.phone},${row.status},${row.id},${scannedTime}`;
         csvContent += rowStr + "\n";
     });
     downloadFile(encodeURI(csvContent), `${filename}.csv`);
@@ -1862,6 +1884,7 @@ function exportXLSX(data, filename) {
     const worksheetData = data.map((row, index) => ({
         "S.No.": index + 1,
         "Guest Name": row.name,
+        "Ticket Type": row.ticketType || 'Classic', // UPDATED
         "Age": row.age,
         "Gender": row.gender,
         "Phone": row.phone,
@@ -1881,12 +1904,14 @@ function exportPDF(data, filename) {
     doc.text("Event Guest List", 14, 20);
     doc.setFontSize(10);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 26);
-    const tableColumn = ["#", "Name", "Age", "Gender", "Phone", "Status", "Entry Time"];
+    // UPDATED: Added Type column
+    const tableColumn = ["#", "Name", "Type", "Age", "Gender", "Phone", "Status", "Entry Time"];
     const tableRows = [];
     data.forEach((row, index) => {
         tableRows.push([
             index + 1,
             row.name,
+            row.ticketType || 'Classic', // UPDATED
             row.age,
             row.gender,
             row.phone,
@@ -1902,11 +1927,12 @@ function exportTXT(data, filename) {
     let content = `GUEST LIST EXPORT - ${new Date().toLocaleString()}\n\n`;
     data.forEach((row, i) => {
         content += `${i+1}. ${row.name.toUpperCase()} \n`;
+        content += `   Type:    ${row.ticketType || 'Classic'}\n`; // UPDATED
         content += `   Details: ${row.age} / ${row.gender}\n`;
-        content += `   Phone: ${row.phone}\n`;
-        content += `   Status: ${row.status.toUpperCase()}\n`;
-        if(row.scannedAt) content += `   Entry: ${new Date(row.scannedAt).toLocaleTimeString()}\n`;
-        content += `   ID: ${row.id}\n`;
+        content += `   Phone:   ${row.phone}\n`;
+        content += `   Status:  ${row.status.toUpperCase()}\n`;
+        if(row.scannedAt) content += `   Entry:   ${new Date(row.scannedAt).toLocaleTimeString()}\n`;
+        content += `   ID:      ${row.id}\n`;
         content += "----------------------------------------\n";
     });
     const blob = new Blob([content], { type: 'text/plain' });
@@ -1915,7 +1941,7 @@ function exportTXT(data, filename) {
 }
 
 function exportJSON(data, filename) {
-    const jsonWithSerial = data.map((item, index) => ({ s_no: index + 1, ...item }));
+    const jsonWithSerial = data.map((item, index) => ({ s_no: index + 1, ticket_type: item.ticketType || 'Classic', ...item }));
     const jsonStr = JSON.stringify(jsonWithSerial, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1929,11 +1955,11 @@ function exportDOC(data, filename) {
         <h2>Guest List Export</h2>
         <table border="1" style="border-collapse: collapse; width: 100%;">
             <tr style="background: #eee;">
-                <th>S.No.</th><th>Name</th><th>Age/Gender</th><th>Phone</th><th>Status</th>
+                <th>S.No.</th><th>Name</th><th>Type</th><th>Age/Gender</th><th>Phone</th><th>Status</th>
             </tr>
     `;
     data.forEach((row, index) => {
-        htmlBody += `<tr><td>${index + 1}</td><td>${row.name}</td><td>${row.age} / ${row.gender}</td><td>${row.phone}</td><td>${row.status}</td></tr>`;
+        htmlBody += `<tr><td>${index + 1}</td><td>${row.name}</td><td>${row.ticketType || 'Classic'}</td><td>${row.age} / ${row.gender}</td><td>${row.phone}</td><td>${row.status}</td></tr>`;
     });
     htmlBody += "</table></body></html>";
     const blob = new Blob(['\ufeff', htmlBody], { type: 'application/msword' });
@@ -1956,7 +1982,8 @@ function openTicketModal(ticket) {
     let typeText = "CLASSIC";
     const tType = ticket.ticketType || "Classic"; 
     
-    if(tType === "Diamond") typeText = "VIP";
+    // UPDATED: Diamond is now visually "Silver" so it gets the "VIP" label as requested.
+    if(tType === "Diamond") typeText = "VIP"; 
     else if(tType === "Gold") typeText = "VVIP";
     else typeText = "CLASSIC";
 
