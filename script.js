@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";   
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";  
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -1529,16 +1529,20 @@ function updateTicketPreview(ticket) {
     document.getElementById('ticketPhone').textContent = ticket.phone;
     document.getElementById('ticketSerial').textContent = `ID: ${ticket.id}`;
     
-    // NEW: Update Header Text (with safe fallback)
-    const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
+    // NEW: Update Header Text Logic
+    let typeText = "CLASSIC";
+    const tType = ticket.ticketType || "Classic"; 
+    
+    if(tType === "Diamond") typeText = "VIP";
+    else if(tType === "Gold") typeText = "VVIP";
+    else typeText = "CLASSIC";
+
     document.getElementById('ticketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
 
     // NEW: Apply Theme Class
-    // Ensure we handle 'Gold' and 'Diamond' correctly based on select values
     const template = document.getElementById('ticketTemplate');
-    template.className = ''; // Reset classes
-    // Add theme class. Default to 'Classic' if empty.
-    template.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
+    template.className = ''; 
+    template.classList.add(`ticket-theme-${tType}`);
 
     const qrcodeContainer = document.getElementById('qrcode');
     qrcodeContainer.innerHTML = '';
@@ -1651,9 +1655,6 @@ function renderBookedTickets() {
 
         const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
         
-        // NEW: Add visual indicator for ticket type in list if desired, 
-        // or just keep standard. For now, standard list view.
-
         tr.innerHTML = `
             <td style="display: ${checkboxDisplayStyle};"><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);" ${isChecked}></td>
             <td style="text-align: center; color: var(--accent-secondary); font-weight: bold;">${index + 1}</td>
@@ -1951,15 +1952,20 @@ function openTicketModal(ticket) {
     document.getElementById('modalTicketPhone').textContent = ticket.phone;
     document.getElementById('modalTicketSerial').textContent = `ID: ${ticket.id}`;
     
-    // NEW: Update Header Text in Modal (with safe fallback)
-    const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
+    // NEW: Update Header Text in Modal Logic
+    let typeText = "CLASSIC";
+    const tType = ticket.ticketType || "Classic"; 
+    
+    if(tType === "Diamond") typeText = "VIP";
+    else if(tType === "Gold") typeText = "VVIP";
+    else typeText = "CLASSIC";
+
     document.getElementById('modalTicketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
 
     // NEW: Apply Theme Class in Modal
     const modalTemplate = document.getElementById('modalTicketTemplate');
-    modalTemplate.className = ''; // Reset
-    // Add theme class (handles 'Gold', 'Diamond' or defaults to 'Classic')
-    modalTemplate.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
+    modalTemplate.className = ''; 
+    modalTemplate.classList.add(`ticket-theme-${tType}`);
 
     const modalQrcodeContainer = document.getElementById('modalQrcode');
     modalQrcodeContainer.innerHTML = '';
