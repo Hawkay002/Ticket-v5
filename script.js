@@ -39,7 +39,6 @@ let currentDeviceId = null;
 
 // ======================================================
 // EASTER EGG AUDIO SETUP
-// TODO: Replace 'path_to_your_music.mp3' with your actual file!
 // ======================================================
 const easterEggAudio = new Audio('music.mp3'); 
 easterEggAudio.loop = true;
@@ -124,14 +123,31 @@ const factoryResetBtn = document.getElementById('factoryResetBtn');
 const usernameListContainer = document.getElementById('username-list-container');
 const selectAllUsernamesBtn = document.getElementById('selectAllUsernamesBtn');
 
-// Admin Lock Modal
+// Admin Lock Modal & NEW Reason Selector Elements
 const adminLockModal = document.getElementById('admin-lock-modal');
 const lockTargetEmailSpan = document.getElementById('lock-target-email');
 const adminLockPassword = document.getElementById('adminLockPassword');
 const toggleAdminLockPassword = document.getElementById('toggleAdminLockPassword');
 const cancelAdminLock = document.getElementById('cancelAdminLock');
 const confirmAdminLock = document.getElementById('confirmAdminLock');
-const lockModalActionText = document.getElementById('lock-modal-action-text');
+// New Admin Elements
+const reasonOptions = document.querySelectorAll('.reason-option');
+const maintenanceTimeInput = document.getElementById('maintenanceTimeInput');
+const lockPreviewBox = document.getElementById('lockPreviewBox');
+const maintHours = document.getElementById('maintHours');
+const maintMins = document.getElementById('maintMins');
+
+// NEW: User Lock Popup Elements
+const lockReasonModal = document.getElementById('lock-reason-modal');
+const lockPopupTitle = document.getElementById('lockPopupTitle');
+const lockPopupMessage = document.getElementById('lockPopupMessage');
+const lockPopupIcon = document.getElementById('lockPopupIcon');
+const lockPopupDuration = document.getElementById('lockPopupDuration');
+const lockDurationText = document.getElementById('lockDurationText');
+const dontShowLockPopupAgain = document.getElementById('dontShowLockPopupAgain');
+const lockPopupRefreshBtn = document.getElementById('lockPopupRefreshBtn');
+const closeLockPopupBtn = document.getElementById('closeLockPopupBtn');
+
 
 // Factory Reset Modal
 const factoryResetModal = document.getElementById('factory-reset-modal');
@@ -159,7 +175,7 @@ const filterLogsTypeBtn = document.getElementById('filterLogsTypeBtn');
 const filterLogsDropdown = document.getElementById('filterLogsDropdown');
 const activityLogsTable = document.getElementById('activityLogsTable');
 
-// NEW LOGS CONTROLS
+// Logs Controls
 const selectLogsBtn = document.getElementById('selectLogsBtn');
 const deleteLogsBtn = document.getElementById('deleteLogsBtn');
 const selectAllLogsCheckbox = document.getElementById('selectAllLogsCheckbox');
@@ -188,14 +204,13 @@ const ticketViewModal = document.getElementById('ticket-view-modal');
 const closeTicketModal = document.getElementById('closeTicketModal');
 const modalWhatsAppBtn = document.getElementById('modalWhatsAppBtn');
 
-// Delete Modal (Tickets)
+// Delete Modals
 const confirmModal = document.getElementById('confirm-modal');
 const deleteCountSpan = document.getElementById('delete-count');
 const cancelDeleteBtn = document.getElementById('cancelDelete');
 const confirmDeleteBtn = document.getElementById('confirmDelete');
 let pendingDeleteIds = [];
 
-// Delete Modal (Logs)
 const confirmLogDeleteModal = document.getElementById('confirm-log-delete-modal');
 const deleteLogCountSpan = document.getElementById('delete-log-count');
 const cancelLogDeleteBtn = document.getElementById('cancelLogDelete');
@@ -212,13 +227,42 @@ const syncStatusDot = document.querySelector('.sync-dot');
 
 
 // ==========================================
-// 4. LOGGING INFRASTRUCTURE
+// 4. ENTER KEY HANDLERS (NEW)
+// ==========================================
+
+function addEnterKeyHandler(inputElement, buttonElement) {
+    if (inputElement && buttonElement) {
+        inputElement.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                buttonElement.click();
+                inputElement.blur(); // Hides keyboard on mobile
+            }
+        });
+    }
+}
+
+// Apply to Login
+addEnterKeyHandler(emailInput, loginButton);
+addEnterKeyHandler(passwordInput, loginButton);
+
+// Apply to Gatekeeper
+addEnterKeyHandler(gatekeeperUsernameInput, gatekeeperSubmitBtn);
+
+// Apply to Admin Modals
+addEnterKeyHandler(adminLockPassword, confirmAdminLock);
+addEnterKeyHandler(factoryResetPasswordInput, confirmFactoryReset);
+
+// Apply to Export Modal
+addEnterKeyHandler(exportFileName, confirmExportBtn);
+
+
+// ==========================================
+// 5. LOGGING INFRASTRUCTURE
 // ==========================================
 
 async function logAction(actionType, details) {
     if (!currentUser) return;
-    
-    // Don't block UI with logging
     try {
         await addDoc(collection(db, 'activity_logs'), {
             timestamp: Date.now(),
@@ -234,7 +278,7 @@ async function logAction(actionType, details) {
 
 
 // ==========================================
-// 5. AUTHENTICATION LIFECYCLE
+// 6. AUTHENTICATION LIFECYCLE
 // ==========================================
 
 function getDeviceId() {
@@ -260,7 +304,6 @@ async function updateHeartbeat(userEmail) {
     if (!navigator.onLine) return; 
     try {
         const deviceRef = doc(db, 'global_presence', userEmail, 'devices', currentDeviceId);
-        // Added username to heartbeat for admin tracking
         await setDoc(deviceRef, {
             lastSeen: Date.now(),
             userAgent: navigator.userAgent,
@@ -273,26 +316,21 @@ async function updateHeartbeat(userEmail) {
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // --- STEP 1: FIREBASE LOGIN SUCCESS ---
         currentUser = user;
         loadingScreen.style.display = 'none';
         loginOverlay.style.display = 'none';
 
         if (user.email === ADMIN_EMAIL) {
-            // ADMIN: Bypass Gatekeeper
             currentUsername = "ADMIN";
             initializeAppSession();
             logAction("LOGIN", "Admin logged in via email.");
         } else {
-            // STAFF: Show Gatekeeper
-            appContent.style.display = 'none'; // Hide app
-            usernameGatekeeperModal.style.display = 'flex'; // Show modal
+            appContent.style.display = 'none';
+            usernameGatekeeperModal.style.display = 'flex'; 
             gatekeeperUsernameInput.value = '';
             gatekeeperUsernameInput.focus();
         }
-
     } else {
-        // --- LOGGED OUT ---
         resetAppState();
         loadingScreen.style.display = 'none';
         loginOverlay.style.display = 'flex';
@@ -301,7 +339,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- GATEKEEPER LOGIC (Step 2) ---
+// --- GATEKEEPER LOGIC ---
 
 gatekeeperSubmitBtn.addEventListener('click', async () => {
     const inputUsername = gatekeeperUsernameInput.value.trim();
@@ -312,29 +350,19 @@ gatekeeperSubmitBtn.addEventListener('click', async () => {
     gatekeeperError.style.display = 'none';
 
     try {
-        // Check Firestore for username
         const userDocRef = doc(db, 'allowed_usernames', inputUsername);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
             const userData = userDoc.data();
-            
-            // Verify if the logged-in email matches the username's assigned email
-            if (userData.email && userData.email !== currentUser.email) {
-                throw new Error("Email mismatch");
-            }
+            if (userData.email && userData.email !== currentUser.email) throw new Error("Email mismatch");
 
-            // SUCCESS
             currentUsername = inputUsername;
             userEmailDisplay.textContent = `${userData.realName} (${inputUsername})`;
             usernameGatekeeperModal.style.display = 'none';
             
-            // Log successful verification
             logAction("LOGIN", `Staff identity verified: ${inputUsername}`);
-            
-            // Proceed to App Init
             initializeAppSession();
-
         } else {
             throw new Error("Username not found");
         }
@@ -357,37 +385,24 @@ gatekeeperLogoutBtn.addEventListener('click', async () => {
 
 function initializeAppSession() {
     appContent.style.display = 'block';
-    
-    // 1. Setup Data Listeners
     setupRealtimeListeners();
-    
-    // 2. Start Presence Heartbeat (Now includes username)
     startHeartbeat(currentUser.email);
 
-    // 3. Conditional Setup
     if (currentUser.email === ADMIN_EMAIL) {
         setupAdminPanel();
         initGlobalSecurity(); 
         remoteLockedTabs = []; 
         userEmailDisplay.textContent = "Administrator";
-        
-        // Show Logs Tab Button for Admin
         if(navLogsBtn) navLogsBtn.style.display = 'inline-block';
-        
-        // Show Settings Form for Admin
         if(eventSettingsForm) eventSettingsForm.style.display = 'block';
-        
     } else {
-        listenForRemoteLocks(currentUser.email); // Uses email for fetching lock doc
+        listenForRemoteLocks(currentUser.email);
         adminLockPanel.style.display = 'none';
         userLockStatus.style.display = 'block';
         if(navLogsBtn) navLogsBtn.style.display = 'none';
-
-        // HIDE Settings Form for Staff
         if(eventSettingsForm) eventSettingsForm.style.display = 'none';
     }
 
-    // 4. Start Auto-Sync
     if(autoCheckInterval) clearInterval(autoCheckInterval);
     autoCheckInterval = setInterval(performSync, 30000); 
     
@@ -406,8 +421,6 @@ function resetAppState() {
     adminPresenceUnsubscribes.forEach(unsub => unsub());
     adminPresenceUnsubscribes = [];
 }
-
-// --- STANDARD LOGIN ---
 
 loginButton.addEventListener('click', async () => {
     const email = emailInput.value;
@@ -459,7 +472,7 @@ if (togglePassword && passwordInput) {
 
 
 // ==========================================
-// 6. INSTANT ADMIN DASHBOARD LOGIC
+// 7. INSTANT ADMIN DASHBOARD LOGIC
 // ==========================================
 
 function setupAdminPanel() {
@@ -480,8 +493,6 @@ function setupAdminPanel() {
             });
             managedUsersDeviceCache[user.email] = deviceData;
             renderManagedUsersList();
-            
-            // NEW: If the user currently selected in the config panel is updated, re-render usernames
             if (selectedUserForConfig === user.email) {
                  fetchAndRenderUsernames(user.email);
             }
@@ -548,25 +559,18 @@ function renderManagedUsersList() {
         let statusText = 'Offline';
         if (isOnline) {
             const count = activeUsernames.size;
-            statusText = `
-                <span class="status-dot-pulse"></span>
-                <span>${count} Active</span>
-            `;
+            statusText = `<span class="status-dot-pulse"></span><span>${count} Active</span>`;
         } else {
             const lastSeenTime = Math.max(...deviceData.map(d => d.lastSeen || 0));
             if (lastSeenTime > 0) {
                 const diff = now - lastSeenTime;
-                const timeStr = diff < 3600000 
-                    ? Math.floor(diff / 60000) + 'm ago' 
-                    : Math.floor(diff / 3600000) + 'h ago';
+                const timeStr = diff < 3600000 ? Math.floor(diff / 60000) + 'm ago' : Math.floor(diff / 3600000) + 'h ago';
                 statusText = `Offline <span style="font-size:0.7em; opacity:0.6; margin-left:3px;">(${timeStr})</span>`;
             }
         }
-
-        const newClass = isOnline ? 'online' : '';
-        const baseClass = 'user-status-indicator';
         
-        if (statusEl.className !== `${baseClass} ${newClass}`.trim()) statusEl.className = `${baseClass} ${newClass}`.trim();
+        if (isOnline && !statusEl.classList.contains('online')) statusEl.classList.add('online');
+        if (!isOnline && statusEl.classList.contains('online')) statusEl.classList.remove('online');
         if (statusEl.innerHTML !== statusText) statusEl.innerHTML = statusText;
     });
 }
@@ -582,23 +586,23 @@ window.selectUserForConfig = async function(email) {
     renderManagedUsersList(); 
     remoteLockCheckboxes.forEach(cb => cb.checked = false);
     selectedUsernamesForLock.clear();
-    currentLockData = null; // Reset
+    currentLockData = null;
 
-    // Load Usernames for this email
+    // Reset Reason UI to defaults initially
+    resetLockReasonUI();
+
     await fetchAndRenderUsernames(email);
 
     try {
         triggerBtnText.textContent = "Loading...";
         triggerLockModalBtn.disabled = true;
 
-        // Fetch current lock data for this email
         const lockDoc = await getDoc(doc(db, 'global_locks', email));
         if (lockDoc.exists()) {
             currentLockData = lockDoc.data();
         }
 
         updateAdminLockButtonState();
-
     } catch (error) {
         console.error("Error fetching user locks:", error);
         showToast("Error", "Could not fetch current lock status.");
@@ -607,8 +611,23 @@ window.selectUserForConfig = async function(email) {
     }
 };
 
+// HELPER: Reset Reason UI
+function resetLockReasonUI() {
+    const basicRadio = document.querySelector('input[name="lockReason"][value="basic"]');
+    if(basicRadio) {
+        basicRadio.checked = true;
+        reasonOptions.forEach(o => o.classList.remove('selected'));
+        basicRadio.closest('.reason-option').classList.add('selected');
+    }
+    if(maintenanceTimeInput) {
+        maintenanceTimeInput.style.display = 'none';
+        if(maintHours) maintHours.value = '';
+        if(maintMins) maintMins.value = '';
+    }
+    updateLockPreview('basic');
+}
+
 async function fetchAndRenderUsernames(email) {
-    // Note: We don't wipe the container immediately to prevent flashing if re-called by realtime listener
     if (!usernameListContainer.hasChildNodes()) {
          usernameListContainer.innerHTML = '<span style="color:#666; font-size: 0.8rem;">Loading associated usernames...</span>';
     }
@@ -618,28 +637,24 @@ async function fetchAndRenderUsernames(email) {
         const querySnapshot = await getDocs(q);
         
         usernameListContainer.innerHTML = '';
-
         if (querySnapshot.empty) {
             usernameListContainer.innerHTML = '<span style="color:#888; font-style: italic;">No specific usernames found. Create via console.</span>';
             return;
         }
 
-        // --- Calculate Online Users ---
         const now = Date.now();
         const deviceData = managedUsersDeviceCache[email] || [];
         const onlineUsernames = new Set();
         
         deviceData.forEach(d => {
-            if (now - d.lastSeen < 30000) { // 30s threshold
+            if (now - d.lastSeen < 30000) { 
                 if (d.username && d.username !== 'unknown') {
                     onlineUsernames.add(d.username);
                 }
             }
         });
 
-        // --- Collect, Sort, then Render ---
         let userArray = [];
-        
         querySnapshot.forEach((doc) => {
             userArray.push({
                 username: doc.id,
@@ -647,36 +662,21 @@ async function fetchAndRenderUsernames(email) {
             });
         });
         
-        // SORT: Online first, then alphabetical
         userArray.sort((a, b) => {
-            // If status is different, prioritize Online (true) over Offline (false)
-            if (a.isOnline !== b.isOnline) {
-                return a.isOnline ? -1 : 1; 
-            }
-            // If status is same, sort alphabetically
+            if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1; 
             return a.username.localeCompare(b.username);
         });
 
-        // RENDER Sorted List
         userArray.forEach(userObj => {
             const { username, isOnline } = userObj;
-            
             const chip = document.createElement('div');
-            
-            // Apply base class + online class if active
             chip.className = `username-chip ${isOnline ? 'online' : ''}`;
-            
-            // Re-apply selected state if it was already selected in memory
-            if (selectedUsernamesForLock.has(username)) {
-                chip.classList.add('selected');
-            }
-
+            if (selectedUsernamesForLock.has(username)) chip.classList.add('selected');
             chip.dataset.username = username;
-            
             const iconClass = isOnline ? 'fa-solid fa-user-check' : 'fa-solid fa-user';
-            
             chip.innerHTML = `<i class="${iconClass}"></i> ${username}`;
             
+            // --- UPDATED CHIP CLICK HANDLER ---
             chip.addEventListener('click', () => {
                 if (selectedUsernamesForLock.has(username)) {
                     selectedUsernamesForLock.delete(username);
@@ -686,21 +686,58 @@ async function fetchAndRenderUsernames(email) {
                     chip.classList.add('selected');
                 }
                 
-                // If single user selected, auto-check their locked tabs
-                if (selectedUsernamesForLock.size === 1 && currentLockData && currentLockData.userSpecificLocks) {
+                // Smart UI Update based on Selection
+                if (selectedUsernamesForLock.size === 1 && currentLockData) {
                     const [singleUser] = selectedUsernamesForLock;
-                    const locks = currentLockData.userSpecificLocks[singleUser] || [];
                     
+                    // 1. Set Checkboxes
+                    const locks = (currentLockData.userSpecificLocks && currentLockData.userSpecificLocks[singleUser]) || [];
                     remoteLockCheckboxes.forEach(cb => {
                         cb.checked = locks.includes(cb.value);
                     });
-                } else {
-                    remoteLockCheckboxes.forEach(cb => cb.checked = false);
-                }
 
+                    // 2. Set Reason & Duration (NEW Logic)
+                    if (currentLockData.lockMetadata && currentLockData.lockMetadata[singleUser]) {
+                        const meta = currentLockData.lockMetadata[singleUser];
+                        
+                        // Select Radio
+                        const radioToSelect = document.querySelector(`input[name="lockReason"][value="${meta.type}"]`);
+                        if (radioToSelect) {
+                            radioToSelect.checked = true;
+                            // Update Visuals
+                            reasonOptions.forEach(o => o.classList.remove('selected'));
+                            radioToSelect.closest('.reason-option').classList.add('selected');
+                            
+                            // Show/Hide Maintenance Inputs & Fill Data
+                            if (meta.type === 'maintenance') {
+                                maintenanceTimeInput.style.display = 'block';
+                                // Simple parser for "2 hr 30 min" string
+                                const hMatch = meta.duration ? meta.duration.match(/(\d+)\s*hr/) : null;
+                                const mMatch = meta.duration ? meta.duration.match(/(\d+)\s*min/) : null;
+                                if(maintHours) maintHours.value = hMatch ? hMatch[1] : '';
+                                if(maintMins) maintMins.value = mMatch ? mMatch[1] : '';
+                            } else {
+                                maintenanceTimeInput.style.display = 'none';
+                                if(maintHours) maintHours.value = '';
+                                if(maintMins) maintMins.value = '';
+                            }
+                            
+                            // Update Preview
+                            updateLockPreview(meta.type);
+                        }
+                    } else {
+                        // Default reset if no metadata for this user
+                        resetLockReasonUI(); 
+                    }
+                } else {
+                    // Multiple or zero selected
+                    if (selectedUsernamesForLock.size === 0) {
+                         remoteLockCheckboxes.forEach(cb => cb.checked = false);
+                         resetLockReasonUI();
+                    }
+                }
                 updateAdminLockButtonState();
             });
-
             usernameListContainer.appendChild(chip);
         });
 
@@ -718,11 +755,9 @@ if(selectAllUsernamesBtn) {
         chips.forEach(chip => {
             const username = chip.dataset.username;
             if (allSelected) {
-                // Deselect All
                 chip.classList.remove('selected');
                 selectedUsernamesForLock.delete(username);
             } else {
-                // Select All
                 if (!chip.classList.contains('selected')) {
                     chip.classList.add('selected');
                     selectedUsernamesForLock.add(username);
@@ -730,26 +765,22 @@ if(selectAllUsernamesBtn) {
             }
         });
         
-        // Clear checkboxes on bulk select to prevent accidental mass locking based on one user's state
+        // If selecting all, we generally reset the UI to force a fresh "Group" config
         remoteLockCheckboxes.forEach(cb => cb.checked = false);
-        
+        resetLockReasonUI();
         updateAdminLockButtonState();
     });
 }
 
 function updateAdminLockButtonState() {
     const userCount = selectedUsernamesForLock.size;
-    
     if (userCount > 0) {
         triggerLockModalBtn.disabled = false;
         triggerBtnText.textContent = `Sync Locks for ${userCount} User${userCount > 1 ? 's' : ''}`;
-        
-        if(lockModalActionText) lockModalActionText.textContent = `restrict access for ${userCount} selected users`;
     } else {
         triggerBtnText.textContent = "Select Users to Configure";
     }
     
-    // Style update based on checkbox selection (visual only)
     const anyChecked = Array.from(remoteLockCheckboxes).some(cb => cb.checked);
     if(anyChecked) {
         triggerLockModalBtn.classList.remove('success-mode');
@@ -759,11 +790,6 @@ function updateAdminLockButtonState() {
         triggerLockModalBtn.classList.add('success-mode');
     }
 }
-
-// Add listener to checkboxes to update button style immediately
-remoteLockCheckboxes.forEach(cb => {
-    cb.addEventListener('change', updateAdminLockButtonState);
-});
 
 
 triggerLockModalBtn.addEventListener('click', () => {
@@ -775,7 +801,15 @@ triggerLockModalBtn.addEventListener('click', () => {
     
     lockTargetEmailSpan.textContent = `${selectedUserForConfig} (${selectedUsernamesForLock.size} users)`;
     adminLockModal.style.display = 'flex';
+    
+    // Reset inputs
     adminLockPassword.value = '';
+    
+    // Note: We do NOT reset reason options here anymore, 
+    // because `chip.addEventListener` might have set them up for us based on existing data.
+    // If checkboxes are empty (unlock mode), maybe defaulting to Basic is fine, 
+    // but preserving the state is better UX.
+
     adminLockPassword.focus();
 });
 
@@ -783,17 +817,64 @@ cancelAdminLock.addEventListener('click', () => {
     adminLockModal.style.display = 'none';
 });
 
-if (toggleAdminLockPassword && adminLockPassword) {
-    toggleAdminLockPassword.addEventListener('click', function () {
-        const type = adminLockPassword.getAttribute('type') === 'password' ? 'text' : 'password';
-        adminLockPassword.setAttribute('type', type);
-        this.classList.toggle('fa-eye');
-        this.classList.toggle('fa-eye-slash');
+// --- ADMIN: Lock Reason Selection Logic ---
+reasonOptions.forEach(opt => {
+    opt.addEventListener('click', () => {
+        // Visual Selection
+        reasonOptions.forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        
+        // Radio Selection
+        const radio = opt.querySelector('input[type="radio"]');
+        radio.checked = true;
+
+        // Toggle Duration Input
+        const val = radio.value;
+        if(val === 'maintenance') {
+            maintenanceTimeInput.style.display = 'block';
+        } else {
+            maintenanceTimeInput.style.display = 'none';
+        }
+
+        updateLockPreview(val);
     });
+});
+
+// Update preview text when time changes
+if(maintHours) maintHours.addEventListener('input', () => updateLockPreview('maintenance'));
+if(maintMins) maintMins.addEventListener('input', () => updateLockPreview('maintenance'));
+
+function updateLockPreview(type) {
+    if(!lockPreviewBox) return;
+
+    lockPreviewBox.className = 'lock-preview-card';
+    lockPreviewBox.classList.add(type);
+
+    let title = "Role Update";
+    let msg = "Certain tabs are restricted for your current role.";
+
+    if (type === 'maintenance') {
+        title = "Maintenance Mode";
+        const h = maintHours.value || 0;
+        const m = maintMins.value || 0;
+        let timeStr = "";
+        if(h > 0) timeStr += `${h} hr `;
+        if(m > 0) timeStr += `${m} min`;
+        
+        msg = `System maintenance in progress.${timeStr ? ' Est. duration: ' + timeStr : ''}`;
+    } else if (type === 'suspension') {
+        title = "Access Review";
+        msg = "Access flagged for review. Contact admin.";
+    }
+
+    lockPreviewBox.innerHTML = `
+        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;">${title}</div>
+        <div style="font-size: 0.8rem; opacity: 0.8;">${msg}</div>
+    `;
 }
 
 // -------------------------------------------------------------
-// UPDATED: Confirm Lock with Robust Fallback
+// UPDATED: Confirm Lock with Robust Fallback & Reason
 // -------------------------------------------------------------
 confirmAdminLock.addEventListener('click', async () => {
     const inputPwd = adminLockPassword.value;
@@ -828,26 +909,44 @@ confirmAdminLock.addEventListener('click', async () => {
             if (cb.checked) lockedTabs.push(cb.value);
         });
 
-        // 2. Prepare Updates for Selected Usernames
+        // 2. Get Metadata (Reason & Duration)
+        const selectedReasonEl = document.querySelector('input[name="lockReason"]:checked');
+        const reasonType = selectedReasonEl ? selectedReasonEl.value : 'basic';
+        
+        let durationStr = '';
+        if (reasonType === 'maintenance') {
+            const h = maintHours.value;
+            const m = maintMins.value;
+            if(h > 0) durationStr += `${h} hr `;
+            if(m > 0) durationStr += `${m} min`;
+            if(!durationStr) durationStr = "Unknown";
+        }
+
+        const metaObj = {
+            type: reasonType,
+            duration: durationStr,
+            updatedAt: Date.now()
+        };
+
+        // 3. Prepare Updates
         const lockRef = doc(db, 'global_locks', selectedUserForConfig);
         confirmAdminLock.textContent = "Syncing...";
 
-        // We use setDoc with merge to update specific keys in the map
         const updates = {};
         
         selectedUsernamesForLock.forEach(username => {
             updates[`userSpecificLocks.${username}`] = lockedTabs;
+            updates[`lockMetadata.${username}`] = metaObj; // Save per-user metadata
         });
         
-        // Also update timestamp
         updates.updatedAt = Date.now();
 
         await updateDoc(lockRef, updates).catch(async (err) => {
-            // If doc doesn't exist, use setDoc
             if (err.code === 'not-found') {
-                const initialData = { userSpecificLocks: {} };
+                const initialData = { userSpecificLocks: {}, lockMetadata: {} };
                 selectedUsernamesForLock.forEach(username => {
                     initialData.userSpecificLocks[username] = lockedTabs;
+                    initialData.lockMetadata[username] = metaObj;
                 });
                 initialData.updatedAt = Date.now();
                 await setDoc(lockRef, initialData);
@@ -856,17 +955,29 @@ confirmAdminLock.addEventListener('click', async () => {
             }
         });
         
-        // LOGGING UPDATED: Use specific LOCK_ACTION type
+        // LOGGING UPDATED
         const usernameList = Array.from(selectedUsernamesForLock).join(', ');
-        logAction("LOCK_ACTION", `Admin locked tabs (${lockedTabs.join(', ') || 'none'}) for users: [${usernameList}] in ${selectedUserForConfig}`);
+        logAction("LOCK_ACTION", `Locked tabs (${lockedTabs.join(', ') || 'none'}) for [${usernameList}]. Reason: ${reasonType.toUpperCase()}`);
 
-        showToast("Sync Successful", `Updated permissions for ${selectedUsernamesForLock.size} users.`);
+        // --- NEW TOAST NOTIFICATION LOGIC ---
+        const isLocking = lockedTabs.length > 0;
+        let toastTitle = isLocking ? "Lock Applied" : "Access Restored";
+        let toastMsg = "";
+        
+        if (isLocking) {
+            toastMsg = `Locked ${lockedTabs.length} tabs for ${selectedUsernamesForLock.size} user(s). Reason: ${reasonType.toUpperCase()}`;
+        } else {
+            toastMsg = `Unlocked all tabs for ${selectedUsernamesForLock.size} user(s).`;
+        }
+        
+        showToast(toastTitle, toastMsg);
         adminLockModal.style.display = 'none';
         
         // Reset selection
         selectedUsernamesForLock.clear();
         document.querySelectorAll('.username-chip.selected').forEach(c => c.classList.remove('selected'));
         remoteLockCheckboxes.forEach(cb => cb.checked = false);
+        resetLockReasonUI(); // Reset UI back to defaults after action
         updateAdminLockButtonState();
 
     } catch (e) {
@@ -877,6 +988,16 @@ confirmAdminLock.addEventListener('click', async () => {
         confirmAdminLock.disabled = false;
     }
 });
+
+
+if (toggleAdminLockPassword && adminLockPassword) {
+    toggleAdminLockPassword.addEventListener('click', function () {
+        const type = adminLockPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+        adminLockPassword.setAttribute('type', type);
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
+    });
+}
 
 // ========================================================
 // SECURITY INITIALIZATION & FACTORY RESET
@@ -946,11 +1067,7 @@ if (confirmFactoryReset) {
         try {
             const secRef = doc(db, 'admin_settings', 'security');
             const docSnap = await getDoc(secRef);
-            
-            let storedPassword = 'admin123'; 
-            if (docSnap.exists() && docSnap.data().factoryResetPassword) {
-                storedPassword = docSnap.data().factoryResetPassword;
-            }
+            let storedPassword = docSnap.exists() && docSnap.data().factoryResetPassword ? docSnap.data().factoryResetPassword : 'admin123';
             
             if (inputPwd !== storedPassword) {
                 alert("INCORRECT PASSWORD. Reset aborted.");
@@ -960,8 +1077,6 @@ if (confirmFactoryReset) {
             }
 
             confirmFactoryReset.textContent = "WIPING DATABASE...";
-            
-            // LOGGING UPDATED: Use specific FACTORY_RESET type
             logAction("FACTORY_RESET", `Admin (${currentUsername || currentUser.email}) initiated FACTORY RESET. All data wiped.`);
 
             const ticketsQ = query(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'));
@@ -978,7 +1093,6 @@ if (confirmFactoryReset) {
             
             await deleteDoc(doc(db, 'admin_settings', 'security'));
             
-            // Also wipe logs
             const logsQ = query(collection(db, 'activity_logs'));
             const logSnap = await getDocs(logsQ);
             const lPromisesLogs = logSnap.docs.map(d => deleteDoc(d.ref));
@@ -998,7 +1112,7 @@ if (confirmFactoryReset) {
 
 
 // ==========================================
-// 7. USER REMOTE LOCK LISTENER
+// 8. USER REMOTE LOCK LISTENER & POPUP
 // ==========================================
 
 function listenForRemoteLocks(userEmail) {
@@ -1008,38 +1122,42 @@ function listenForRemoteLocks(userEmail) {
     lockUnsubscribe = onSnapshot(lockRef, (doc) => {
         if (doc.exists()) {
             const data = doc.data();
-            
-            // Priority: Check if there is a specific lock for the current username
             let tabsToLock = [];
-            
+            let lockMeta = null;
+
             if (data.userSpecificLocks && currentUsername && data.userSpecificLocks[currentUsername] !== undefined) {
-                // Apply specific locks for this username
                 tabsToLock = data.userSpecificLocks[currentUsername];
+                // Check if metadata exists for this user
+                if(data.lockMetadata && data.lockMetadata[currentUsername]) {
+                    lockMeta = data.lockMetadata[currentUsername];
+                }
             } else {
-                // Fallback: Use global locks (backward compatibility or if no specific user lock set)
                 tabsToLock = data.lockedTabs || [];
             }
             
-            applyRemoteLocks(tabsToLock);
+            applyRemoteLocks(tabsToLock, lockMeta);
         } else {
-            applyRemoteLocks([]); 
+            applyRemoteLocks([], null); 
         }
     }, (error) => {
         console.warn("Lock listener failed:", error);
     });
 }
 
-function applyRemoteLocks(tabsToLock) {
+function applyRemoteLocks(tabsToLock, lockMeta) {
     remoteLockedTabs = tabsToLock;
     const allNavs = document.querySelectorAll('.nav-btn');
     
+    // 1. Reset visual locks
     allNavs.forEach(btn => btn.classList.remove('locked'));
 
+    // 2. Apply visual locks
     tabsToLock.forEach(tabName => {
         const btn = document.querySelector(`[data-tab="${tabName}"]`);
         if(btn) btn.classList.add('locked');
     });
 
+    // 3. Handle Active Tab Locking
     const currentActive = document.querySelector('.nav-btn.active');
     if (currentActive && tabsToLock.includes(currentActive.dataset.tab)) {
         const allTabs = ['create', 'booked', 'scanner', 'settings'];
@@ -1047,17 +1165,121 @@ function applyRemoteLocks(tabsToLock) {
         
         if (safeTab) {
             document.querySelector(`[data-tab="${safeTab}"]`).click();
-            showToast("Access Restricted", "Administrator has locked this tab.");
-            playError();
+            // We do NOT show a toast here if we are about to show the big popup
         } else {
              document.querySelector('[data-tab="settings"]').click();
         }
     }
+
+    // 4. TRIGGER POPUP IF LOCKS EXIST AND METADATA IS PRESENT
+    if(tabsToLock.length > 0 && lockMeta) {
+        // Record that we are in maintenance mode if applicable
+        if (lockMeta.type === 'maintenance') {
+            localStorage.setItem('was_in_maintenance', 'true');
+        }
+        checkAndShowLockPopup(lockMeta);
+    } else {
+        // --- NEW: CHECK IF WE JUST EXITED MAINTENANCE ---
+        // If no locks (or empty list), check if we were previously in maintenance
+        if (localStorage.getItem('was_in_maintenance') === 'true') {
+            localStorage.removeItem('was_in_maintenance'); // Clear flag immediately
+            showMaintenanceOverPopup();
+        } else {
+            // Normal unlock: ensure modal is hidden
+            lockReasonModal.style.display = 'none';
+        }
+    }
+}
+
+// --- NEW: MAINTENANCE OVER POPUP ---
+function showMaintenanceOverPopup() {
+    const modalContent = lockReasonModal.querySelector('.lock-popup-content');
+    modalContent.className = 'modal-box lock-popup-content theme-maintenance-over'; // Apply GREEN theme
+    
+    lockPopupIcon.className = 'fa-solid fa-check-circle';
+    lockPopupTitle.textContent = "System Updated";
+    lockPopupMessage.textContent = "Maintenance is complete. Please refresh to load new changes.";
+    
+    lockPopupDuration.style.display = 'none';
+    
+    // Hide 'Don't show again' for this positive message? 
+    // Or keep it. Usually good to hide it for a 'Success' message that requires action.
+    const checkboxWrapper = lockReasonModal.querySelector('.lock-popup-checkbox-wrapper');
+    if(checkboxWrapper) checkboxWrapper.style.display = 'none';
+
+    // Show Modal
+    lockReasonModal.style.display = 'flex';
+}
+
+function checkAndShowLockPopup(meta) {
+    // Check LocalStorage for "Don't show again"
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const suppressedDate = localStorage.getItem('lock_notification_suppress_date');
+    
+    if (suppressedDate === today) {
+        return; // Don't show
+    }
+
+    // Configure Popup Content based on Reason Type
+    const modalContent = lockReasonModal.querySelector('.lock-popup-content');
+    modalContent.className = 'modal-box lock-popup-content'; // Reset classes
+    lockPopupDuration.style.display = 'none';
+    
+    // Ensure checkbox wrapper is visible (might have been hidden by success popup)
+    const checkboxWrapper = lockReasonModal.querySelector('.lock-popup-checkbox-wrapper');
+    if(checkboxWrapper) checkboxWrapper.style.display = 'block';
+
+    if (meta.type === 'maintenance') {
+        modalContent.classList.add('theme-maintenance');
+        lockPopupIcon.className = 'fa-solid fa-screwdriver-wrench';
+        lockPopupTitle.textContent = "Maintenance Mode";
+        lockPopupMessage.textContent = "Admin is performing updates. Some tabs are temporarily locked.";
+        
+        if(meta.duration) {
+            lockPopupDuration.style.display = 'inline-block';
+            lockDurationText.textContent = meta.duration;
+        }
+    } 
+    else if (meta.type === 'suspension') {
+        modalContent.classList.add('theme-suspension');
+        lockPopupIcon.className = 'fa-solid fa-triangle-exclamation';
+        lockPopupTitle.textContent = "Access Review";
+        lockPopupMessage.textContent = "Your access to certain features has been flagged for review. Please contact support.";
+    } 
+    else {
+        // Basic / Default
+        modalContent.classList.add('theme-basic');
+        lockPopupIcon.className = 'fa-solid fa-circle-info';
+        lockPopupTitle.textContent = "Role Update";
+        lockPopupMessage.textContent = "Access to these tabs is currently restricted for your role.";
+    }
+
+    // Show Modal
+    lockReasonModal.style.display = 'flex';
+}
+
+// Popup Button Logic
+if(lockPopupRefreshBtn) {
+    lockPopupRefreshBtn.addEventListener('click', () => {
+        window.location.reload();
+    });
+}
+
+if(closeLockPopupBtn) {
+    closeLockPopupBtn.addEventListener('click', () => {
+        const checkbox = document.getElementById('dontShowLockPopupAgain');
+        // Only save suppression if checkbox exists and is visible (not for maintenance over)
+        if (checkbox && checkbox.offsetParent !== null && checkbox.checked) {
+            const today = new Date().toISOString().slice(0, 10);
+            localStorage.setItem('lock_notification_suppress_date', today);
+        }
+        lockReasonModal.style.display = 'none';
+    });
 }
 
 
 // ==========================================
-// 8. VISUALS & UTILITIES
+// 9. VISUALS & UTILITIES
 // ==========================================
 
 function createStars() {
@@ -1121,12 +1343,10 @@ function playError() {
 // -------------------------------------------------------------
 function toggleEasterEggMusic(element) {
     if (easterEggAudio.paused) {
-        // Play
         easterEggAudio.play().catch(e => console.warn("Music file not found or interaction required."));
         element.classList.add('playing');
         showToast("Easter Egg Found! 🎵", "Playing music...");
     } else {
-        // Stop
         easterEggAudio.pause();
         easterEggAudio.currentTime = 0;
         document.querySelectorAll('.easter-egg-trigger').forEach(el => el.classList.remove('playing'));
@@ -1135,7 +1355,7 @@ function toggleEasterEggMusic(element) {
 
 
 // ==========================================
-// 9. APP NAVIGATION & DATA SYNC
+// 10. APP NAVIGATION & DATA SYNC
 // ==========================================
 
 navButtons.forEach(button => {
@@ -1144,6 +1364,8 @@ navButtons.forEach(button => {
 
         if (remoteLockedTabs.includes(targetTab)) {
             e.preventDefault();
+            // Don't show toast if main popup is likely visible/suppressed
+            // But if user manually clicks, we should probably remind them
             showToast("Access Denied", "This tab is currently locked by the Administrator.");
             playError();
             return;
@@ -1153,7 +1375,6 @@ navButtons.forEach(button => {
             stopScan();
         }
 
-        // NEW: If Logs tab is clicked, fetch data
         if (targetTab === 'logs') {
             fetchAndRenderLogs();
         }
@@ -1260,7 +1481,7 @@ refreshStatusIndicator.addEventListener('click', performSync);
 
 
 // ==========================================
-// 10. TICKET CREATION & PREVIEW
+// 11. TICKET CREATION & PREVIEW
 // ==========================================
 
 ticketForm.addEventListener('submit', async (e) => {
@@ -1366,7 +1587,7 @@ whatsappBtn.addEventListener('click', () => {
 
 
 // ==========================================
-// 11. GUEST LIST LOGIC
+// 12. GUEST LIST LOGIC
 // ==========================================
 
 function renderBookedTickets() {
@@ -1471,7 +1692,7 @@ document.querySelectorAll('.dropdown-item').forEach(item => {
             document.querySelectorAll(`.dropdown-item[data-type="log-filter"]`).forEach(el => el.classList.remove('selected'));
             item.classList.add('selected');
             currentLogFilter = val;
-            renderLogsTable(); // Re-render logs locally
+            renderLogsTable(); 
             filterLogsDropdown.classList.remove('show');
             return;
         }
@@ -1488,7 +1709,7 @@ document.querySelectorAll('.dropdown-item').forEach(item => {
 
 
 // ==========================================
-// 12. SELECTION, DELETE & EXPORT
+// 13. SELECTION, DELETE & EXPORT
 // ==========================================
 
 function updateSelectionCount() {
@@ -1547,7 +1768,6 @@ confirmDeleteBtn.addEventListener('click', async () => {
             await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', id));
         }
         
-        // LOGGING UPDATED: Use specific delete action
         logAction("TICKET_DELETE", `Deleted ${pendingDeleteIds.length} tickets from guest list.`);
 
         confirmModal.style.display = 'none';
@@ -1593,7 +1813,6 @@ confirmExportBtn.addEventListener('click', () => {
         case 'doc': exportDOC(listToExport, filename); break;
     }
     
-    // LOGGING
     logAction("EXPORT_DATA", `Exported ${listToExport.length} records as ${format.toUpperCase()}`);
 
     exportModal.style.display = 'none';
@@ -1706,7 +1925,7 @@ function exportDOC(data, filename) {
 
 
 // ==========================================
-// 13. TICKET VIEW MODAL
+// 14. TICKET VIEW MODAL
 // ==========================================
 
 function openTicketModal(ticket) {
@@ -1781,7 +2000,7 @@ modalWhatsAppBtn.addEventListener('click', () => {
 
 
 // ==========================================
-// 14. SCANNER LOGIC
+// 15. SCANNER LOGIC
 // ==========================================
 
 startScanBtn.addEventListener('click', () => {
@@ -1825,29 +2044,22 @@ function tick() {
         const imageData = ctx.getImageData(0,0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
         
-        // --- MODIFIED COOLDOWN LOGIC START ---
         if(code && !isCooldown) {
             isCooldown = true;
             
-            // 1. Reset visual state to visible (just in case)
             scanResult.classList.remove('hiding-result'); 
-            
-            // 2. Validate Ticket (updates text/color)
             validateTicket(code.data);
             
-            // 3. Wait 3 seconds, then start fade out
             setTimeout(() => {
                 scanResult.classList.add('hiding-result');
             }, 3000);
 
-            // 4. Wait total 4 seconds (3s hold + 1s fade), then hide completely and unlock
             setTimeout(() => {
                 scanResult.style.display = 'none';
-                scanResult.classList.remove('hiding-result'); // Reset for next time
-                isCooldown = false; // Unlock
+                scanResult.classList.remove('hiding-result'); 
+                isCooldown = false; 
             }, 4000);
         }
-        // --- MODIFIED COOLDOWN LOGIC END ---
     }
     if (scannerVideo.srcObject) {
         requestAnimationFrame(tick);
@@ -1857,18 +2069,13 @@ function tick() {
 async function validateTicket(ticketId) {
     if (!navigator.onLine) return showToast("Offline", "Cannot validate tickets while offline.");
     
-    // Normalize ID if needed, though usually exact match
     const ticket = bookedTickets.find(t => t.id === ticketId);
     
     scanResult.style.display = 'block';
-    
-    // Clear previous classes/styles to ensure clean state
     scanResult.className = ''; 
-    // Re-add potentially needed classes if any (none in original except hiding-result which is managed by tick)
     
     if(ticket) {
         if(ticket.status === 'coming-soon' && !ticket.scanned) {
-            // SUCCESS
             await updateDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', ticketId), {
                 status: 'arrived',
                 scanned: true,
@@ -1881,7 +2088,6 @@ async function validateTicket(ticketId) {
             scanResult.style.background = 'rgba(16, 185, 129, 0.2)';
             scanResult.style.color = '#10b981';
             scanResult.style.border = '1px solid #10b981';
-            // Using innerHTML to format the ID on a new line easily
             scanResult.innerHTML = `
                 <div style="font-size: 1.1rem; font-weight: bold;">✅ ACCESS GRANTED</div>
                 <div style="color: white; margin-top: 5px;">${ticket.name}</div>
@@ -1889,9 +2095,7 @@ async function validateTicket(ticketId) {
             `;
             playBeep();
         } else {
-            // ALREADY SCANNED / WRONG STATUS
-            // Orange/Yellow for warning
-            scanResult.style.background = 'rgba(245, 158, 11, 0.2)'; // Amber-500 equivalent
+            scanResult.style.background = 'rgba(245, 158, 11, 0.2)'; 
             scanResult.style.color = '#f59e0b';
             scanResult.style.border = '1px solid #f59e0b';
             
@@ -1906,7 +2110,6 @@ async function validateTicket(ticketId) {
             playError();
         }
     } else {
-        // INVALID TICKET ID
         scanResult.style.background = 'rgba(239, 68, 68, 0.2)';
         scanResult.style.color = '#ef4444';
         scanResult.style.border = '1px solid #ef4444';
@@ -1922,7 +2125,7 @@ async function validateTicket(ticketId) {
 
 
 // ==========================================
-// 15. SETTINGS FORM
+// 16. SETTINGS FORM
 // ==========================================
 
 eventSettingsForm.addEventListener('submit', async (e) => {
@@ -1942,7 +2145,6 @@ eventSettingsForm.addEventListener('submit', async (e) => {
 
     await setDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'settings', 'config'), newSettings, { merge: true });
     
-    // LOGGING
     logAction("CONFIG_CHANGE", `Event details updated: ${newName || 'Untitled'} @ ${newPlace || 'No Loc'}`);
 
     showToast("Settings Saved", "Event details updated for everyone.");
@@ -1963,7 +2165,7 @@ function updateSettingsDisplay() {
 
 
 // ==========================================
-// 16. SIDE TRAY & PWA
+// 17. SIDE TRAY & PWA
 // ==========================================
 
 if (trayToggle && contactTray) {
@@ -2017,7 +2219,7 @@ if ("serviceWorker" in navigator) {
 }
 
 // ==========================================
-// 17. CONNECTION STATUS MONITORING
+// 18. CONNECTION STATUS MONITORING
 // ==========================================
 
 function updateNetworkStatus() {
@@ -2038,10 +2240,9 @@ if (!navigator.onLine) {
 }
 
 // ==========================================
-// 18. LOGS UI LOGIC (ADMIN ONLY)
+// 19. LOGS UI LOGIC (ADMIN ONLY)
 // ==========================================
 
-// Fetch logs when button clicked
 if (refreshLogsBtn) {
     refreshLogsBtn.addEventListener('click', () => {
         const icon = refreshLogsBtn.querySelector('i');
@@ -2061,7 +2262,7 @@ if (filterLogsTypeBtn) {
 
 if (searchLogsInput) {
     searchLogsInput.addEventListener('input', () => {
-        renderLogsTable(); // Local filter
+        renderLogsTable(); 
     });
 }
 
@@ -2070,7 +2271,6 @@ async function fetchAndRenderLogs() {
     activityLogsTable.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#666;">Syncing logs...</td></tr>';
     
     try {
-        // Fetch last 50 logs
         const q = query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'));
         const snapshot = await getDocs(q);
         
@@ -2100,7 +2300,6 @@ function updateLogSelectionCount() {
     else selectAllLogsCheckbox.checked = allVisibleSelected;
 }
 
-// Toggle Selection Mode
 selectLogsBtn.addEventListener('click', () => {
     isLogSelectionMode = !isLogSelectionMode;
     deleteLogsBtn.style.display = isLogSelectionMode ? 'inline-block' : 'none';
@@ -2114,7 +2313,6 @@ selectLogsBtn.addEventListener('click', () => {
     renderLogsTable();
 });
 
-// Select All Logic
 selectAllLogsCheckbox.addEventListener('change', (e) => {
     const isChecked = e.target.checked;
     currentFilteredLogs.forEach(l => {
@@ -2125,7 +2323,6 @@ selectAllLogsCheckbox.addEventListener('change', (e) => {
     updateLogSelectionCount();
 });
 
-// Delete Logic
 deleteLogsBtn.addEventListener('click', () => {
     const selectedIds = Array.from(selectedLogIds);
     if(selectedIds.length === 0) return alert('Select logs to delete');
@@ -2148,10 +2345,8 @@ confirmLogDeleteBtn.addEventListener('click', async () => {
                 await deleteDoc(doc(db, 'activity_logs', id));
             }
             
-            // Log the log deletion (Meta!)
             logAction("LOG_DELETE", `Admin deleted ${pendingLogDeleteIds.length} activity records.`);
 
-            // Refresh UI
             allActivityLogs = allActivityLogs.filter(l => !selectedLogIds.has(l.id));
             
             showToast("Logs Deleted", `Removed ${pendingLogDeleteIds.length} entries.`);
@@ -2164,7 +2359,7 @@ confirmLogDeleteBtn.addEventListener('click', async () => {
             confirmLogDeleteBtn.textContent = "Delete";
             pendingLogDeleteIds = [];
             selectedLogIds.clear(); 
-            selectLogsBtn.click(); // Exit selection mode
+            selectLogsBtn.click(); 
         }
     }
 });
@@ -2173,18 +2368,13 @@ confirmLogDeleteBtn.addEventListener('click', async () => {
 function renderLogsTable() {
     const term = searchLogsInput.value.toLowerCase().trim();
     
-    // Checkbox Header Visibility
     const headerCheck = document.querySelector('.log-check-header');
     if(headerCheck) headerCheck.style.display = isLogSelectionMode ? 'table-cell' : 'none';
 
     currentFilteredLogs = allActivityLogs.filter(log => {
-        // Filter Type
         if (currentLogFilter !== 'all' && log.action !== currentLogFilter) return false;
-        
-        // Filter Search (User, Action, or Details)
         const combinedString = `${log.username} ${log.action} ${log.details}`.toLowerCase();
         if (!combinedString.includes(term)) return false;
-        
         return true;
     });
     
@@ -2201,14 +2391,11 @@ function renderLogsTable() {
         const tr = document.createElement('tr');
         tr.dataset.id = log.id;
         
-        // Format Time
         const dateObj = new Date(log.timestamp);
         const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
-        // Action Badge Class
         const badgeClass = `log-action-${log.action}` in getClassMap() ? `log-action-${log.action}` : 'log-action-DEFAULT';
         
-        // NEW: Add specific class for the easter egg trigger
         const easterEggClass = log.action === 'EXPORT_DATA' ? 'easter-egg-trigger' : '';
         
         const isChecked = selectedLogIds.has(log.id) ? 'checked' : '';
@@ -2225,7 +2412,6 @@ function renderLogsTable() {
         activityLogsTable.appendChild(tr);
     });
 
-    // Add Checkbox Listeners
     document.querySelectorAll('.log-checkbox').forEach(box => {
         box.addEventListener('change', (e) => {
             const rowId = e.target.closest('tr').dataset.id;
@@ -2235,16 +2421,14 @@ function renderLogsTable() {
         });
     });
 
-    // Attach Easter Egg Listeners
     document.querySelectorAll('.easter-egg-trigger').forEach(badge => {
         badge.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent row selection if any
+            e.stopPropagation(); 
             toggleEasterEggMusic(badge);
         });
     });
 }
 
-// Helper to check CSS classes without DOM query
 function getClassMap() {
     return {
         'log-action-LOGIN': true,
@@ -2252,19 +2436,17 @@ function getClassMap() {
         'log-action-SCAN_ENTRY': true,
         'log-action-CONFIG_CHANGE': true,
         'log-action-HELP_CALL': true,
-        // NEW RED ACTIONS
         'log-action-TICKET_DELETE': true,
         'log-action-FACTORY_RESET': true,
         'log-action-LOCK_ACTION': true,
         'log-action-LOG_DELETE': true,
-        // RAINBOW ACTION
         'log-action-EXPORT_DATA': true
     };
 }
 
 
 // ==========================================
-// 19. ADMIN HELPER FUNCTION (For Console)
+// 20. ADMIN HELPER FUNCTION (For Console)
 // ==========================================
 window.createStaffUser = async function(username, realName, role) {
     if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
@@ -2272,7 +2454,6 @@ window.createStaffUser = async function(username, realName, role) {
         return;
     }
     
-    // Auto-detect email based on role for simplicity
     let targetEmail = "";
     if (role.toLowerCase().includes('event')) targetEmail = "eveman.test@gmail.com";
     else if (role.toLowerCase().includes('reg')) targetEmail = "regdesk.test@gmail.com";
