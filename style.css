@@ -1633,3 +1633,157 @@ tr:hover td {
 #scanResult.hiding-result {
     opacity: 0;
 }
+
+/* ========================================= */
+/* NEW: Lock Reason Popup & Admin UI Styles */
+/* ========================================= */
+
+/* --- Admin Reason Selector --- */
+.reason-options {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.reason-option {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.reason-option input { display: none; }
+
+.reason-option:hover { background: rgba(255,255,255,0.08); }
+
+.reason-option.selected {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border-color: white;
+}
+
+.reason-icon { font-size: 1.2rem; margin-bottom: 2px; }
+.reason-icon.basic { color: var(--accent-secondary); }
+.reason-icon.maintenance { color: #f59e0b; }
+.reason-icon.suspension { color: #ef4444; }
+
+/* --- Admin Preview Card --- */
+.lock-preview-card {
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 4px solid #555;
+    background: rgba(0,0,0,0.3);
+    color: #ccc;
+    text-align: left;
+    transition: all 0.3s;
+}
+
+.lock-preview-card.basic { border-left-color: var(--accent-secondary); background: rgba(59, 130, 246, 0.1); color: #dbeafe; }
+.lock-preview-card.maintenance { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.1); color: #fef3c7; }
+.lock-preview-card.suspension { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.1); color: #fee2e2; }
+
+
+/* --- User Popup Styles --- */
+.lock-popup-content {
+    border-top: 4px solid #555; /* Default fallback */
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    max-width: 380px;
+}
+
+.lock-popup-header {
+    padding: 30px 20px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.lock-icon-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    background: rgba(255,255,255,0.05);
+}
+
+.lock-popup-body {
+    padding: 10px 25px 20px;
+    text-align: center;
+}
+
+.lock-popup-body p {
+    font-size: 1rem;
+    line-height: 1.5;
+    margin-bottom: 15px;
+    color: #e5e5e5;
+}
+
+.lock-duration-box {
+    background: rgba(0,0,0,0.3);
+    padding: 8px 15px;
+    border-radius: 20px;
+    display: inline-block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.lock-help-text {
+    font-size: 0.75rem;
+    color: #777;
+    margin-top: 10px;
+    font-style: italic;
+    border-top: 1px dashed rgba(255,255,255,0.1);
+    padding-top: 10px;
+}
+
+.lock-popup-checkbox-wrapper {
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    font-size: 0.8rem;
+    color: #999;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* --- User Popup Color Themes --- */
+/* Basic (Blue) */
+.lock-popup-content.theme-basic { border-top-color: var(--accent-secondary); }
+.lock-popup-content.theme-basic .lock-icon-circle { color: var(--accent-secondary); background: rgba(59, 130, 246, 0.15); }
+.lock-popup-content.theme-basic h3 { color: var(--accent-secondary); }
+
+/* Maintenance (Orange) */
+.lock-popup-content.theme-maintenance { border-top-color: #f59e0b; }
+.lock-popup-content.theme-maintenance .lock-icon-circle { color: #f59e0b; background: rgba(245, 158, 11, 0.15); }
+.lock-popup-content.theme-maintenance h3 { color: #f59e0b; }
+.lock-popup-content.theme-maintenance .lock-duration-box { color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+/* Suspension (Red) */
+.lock-popup-content.theme-suspension { border-top-color: #ef4444; }
+.lock-popup-content.theme-suspension .lock-icon-circle { color: #ef4444; background: rgba(239, 68, 68, 0.15); }
+.lock-popup-content.theme-suspension h3 { color: #ef4444; }
+
+/* Maintenance Over (Green) */
+.lock-popup-content.theme-maintenance-over { 
+    border-top-color: var(--success-green); 
+}
+.lock-popup-content.theme-maintenance-over .lock-icon-circle { 
+    color: var(--success-green); 
+    background: rgba(16, 185, 129, 0.15); 
+}
+.lock-popup-content.theme-maintenance-over h3 { 
+    color: var(--success-green); 
+}
