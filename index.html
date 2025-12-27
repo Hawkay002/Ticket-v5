@@ -229,6 +229,7 @@
                 <div id="modalTicketTemplate">
                     <div class="ticket-content-wrapper">
                         <div class="ticket-header">
+                            <!-- UPDATED: Added ID to H3 -->
                             <h3 id="modalTicketTitleHeader">Entry Pass</h3>
                             <p id="modalEventNamePlace">--</p>
                         </div>
@@ -337,10 +338,12 @@
                         <form id="ticketForm">
                             <input type="text" id="name" class="premium-input" placeholder="Full Name" required>
                             
+                            <!-- UPDATED: Ticket Type Dropdown -->
+                            <!-- VVIP -> Gold as requested -->
                             <select id="ticketType" class="premium-input" required>
                                 <option value="Classic" selected>Classic (Standard)</option>
-                                <option value="VIP">VIP (Gold)</option>
-                                <option value="VVIP">VVIP (Diamond)</option>
+                                <option value="Diamond">VIP (Silver)</option>
+                                <option value="Gold">VVIP (Gold)</option>
                             </select>
 
                             <div style="display: flex; gap: 10px;">
@@ -361,6 +364,7 @@
                         <div id="ticketTemplate">
                             <div class="ticket-content-wrapper">
                                 <div class="ticket-header">
+                                    <!-- UPDATED: Added ID to H3 -->
                                     <h3 id="ticketTitleHeader">Entry Pass</h3>
                                     <p id="eventNamePlace">Event Details Loading...</p>
                                 </div>
