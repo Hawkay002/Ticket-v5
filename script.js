@@ -1529,13 +1529,15 @@ function updateTicketPreview(ticket) {
     document.getElementById('ticketPhone').textContent = ticket.phone;
     document.getElementById('ticketSerial').textContent = `ID: ${ticket.id}`;
     
-    // NEW: Update Header Text
+    // NEW: Update Header Text (with safe fallback)
     const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
     document.getElementById('ticketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
 
     // NEW: Apply Theme Class
+    // Ensure we handle 'Gold' and 'Diamond' correctly based on select values
     const template = document.getElementById('ticketTemplate');
     template.className = ''; // Reset classes
+    // Add theme class. Default to 'Classic' if empty.
     template.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
 
     const qrcodeContainer = document.getElementById('qrcode');
@@ -1648,6 +1650,9 @@ function renderBookedTickets() {
         }
 
         const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
+        
+        // NEW: Add visual indicator for ticket type in list if desired, 
+        // or just keep standard. For now, standard list view.
 
         tr.innerHTML = `
             <td style="display: ${checkboxDisplayStyle};"><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);" ${isChecked}></td>
@@ -1946,13 +1951,14 @@ function openTicketModal(ticket) {
     document.getElementById('modalTicketPhone').textContent = ticket.phone;
     document.getElementById('modalTicketSerial').textContent = `ID: ${ticket.id}`;
     
-    // NEW: Update Header Text in Modal
+    // NEW: Update Header Text in Modal (with safe fallback)
     const typeText = ticket.ticketType ? ticket.ticketType.toUpperCase() : 'CLASSIC';
     document.getElementById('modalTicketTitleHeader').textContent = `ENTRY PASS - ${typeText}`;
 
     // NEW: Apply Theme Class in Modal
     const modalTemplate = document.getElementById('modalTicketTemplate');
     modalTemplate.className = ''; // Reset
+    // Add theme class (handles 'Gold', 'Diamond' or defaults to 'Classic')
     modalTemplate.classList.add(`ticket-theme-${ticket.ticketType || 'Classic'}`);
 
     const modalQrcodeContainer = document.getElementById('modalQrcode');
