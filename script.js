@@ -145,7 +145,7 @@ const lockPopupMessage = document.getElementById('lockPopupMessage');
 const lockPopupIcon = document.getElementById('lockPopupIcon');
 const lockPopupDuration = document.getElementById('lockPopupDuration');
 const lockDurationText = document.getElementById('lockDurationText');
-const dontShowLockPopupAgain = document.getElementById('dontShowLockPopupAgain');
+// Removed: dontShowLockPopupAgain reference
 const lockPopupRefreshBtn = document.getElementById('lockPopupRefreshBtn');
 const closeLockPopupBtn = document.getElementById('closeLockPopupBtn');
 
@@ -1213,22 +1213,15 @@ function showMaintenanceOverPopup() {
 }
 
 function checkAndShowLockPopup(meta) {
-    // Check LocalStorage for "Don't show again"
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const suppressedDate = localStorage.getItem('lock_notification_suppress_date');
-    
-    if (suppressedDate === today) {
-        return; // Don't show
-    }
+    // UPDATED: Removed Suppression Check completely.
+    // Popup will now show every time this function is called (refresh or lock update).
 
     // Configure Popup Content based on Reason Type
     const modalContent = lockReasonModal.querySelector('.lock-popup-content');
     modalContent.className = 'modal-box lock-popup-content'; // Reset classes
     lockPopupDuration.style.display = 'none';
     
-    // Ensure checkbox wrapper is visible (might have been hidden by success popup)
-    const checkboxWrapper = lockReasonModal.querySelector('.lock-popup-checkbox-wrapper');
-    if(checkboxWrapper) checkboxWrapper.style.display = 'block';
+    // Removed: checkboxWrapper display logic
 
     if (meta.type === 'maintenance') {
         modalContent.classList.add('theme-maintenance');
@@ -1268,12 +1261,7 @@ if(lockPopupRefreshBtn) {
 
 if(closeLockPopupBtn) {
     closeLockPopupBtn.addEventListener('click', () => {
-        const checkbox = document.getElementById('dontShowLockPopupAgain');
-        // Only save suppression if checkbox exists and is visible (not for maintenance over)
-        if (checkbox && checkbox.offsetParent !== null && checkbox.checked) {
-            const today = new Date().toISOString().slice(0, 10);
-            localStorage.setItem('lock_notification_suppress_date', today);
-        }
+        // UPDATED: Simply hide the modal. No local storage setting.
         lockReasonModal.style.display = 'none';
     });
 }
