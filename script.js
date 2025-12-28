@@ -1244,7 +1244,7 @@ function showUnlockPopup(type) {
     } else {
         // Basic or Review (Suspension)
         lockPopupTitle.textContent = "Access Restored";
-        lockPopupMessage.textContent = "Tabs are unlocked for you now. You may continue, click refresh for changes to happen.";
+        lockPopupMessage.textContent = "Your tabs are unlocked now. Just refresh the page to apply the changes.";
     }
     
     lockPopupDuration.style.display = 'none';
