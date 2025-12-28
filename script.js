@@ -326,10 +326,31 @@ onAuthStateChanged(auth, async (user) => {
             initializeAppSession();
             logAction("LOGIN", "Admin logged in via email.");
         } else {
-            appContent.style.display = 'none';
-            usernameGatekeeperModal.style.display = 'flex'; 
-            gatekeeperUsernameInput.value = '';
-            gatekeeperUsernameInput.focus();
+            // UPDATED LOGIC: Check for existing username session to skip popup
+            const storedUsername = localStorage.getItem('active_staff_username');
+
+            if (storedUsername) {
+                // Restore session without popup
+                currentUsername = storedUsername;
+                
+                // Fetch real name for display silently
+                getDoc(doc(db, 'allowed_usernames', storedUsername)).then(snap => {
+                    if(snap.exists()) {
+                        const data = snap.data();
+                        userEmailDisplay.textContent = `${data.realName} (${storedUsername})`;
+                    } else {
+                         userEmailDisplay.textContent = `Staff (${storedUsername})`;
+                    }
+                });
+
+                initializeAppSession();
+            } else {
+                // No stored username, show gatekeeper
+                appContent.style.display = 'none';
+                usernameGatekeeperModal.style.display = 'flex';
+                gatekeeperUsernameInput.value = '';
+                gatekeeperUsernameInput.focus();
+            }
         }
     } else {
         resetAppState();
@@ -359,6 +380,10 @@ gatekeeperSubmitBtn.addEventListener('click', async () => {
             if (userData.email && userData.email !== currentUser.email) throw new Error("Email mismatch");
 
             currentUsername = inputUsername;
+            
+            // UPDATED: Save username to local storage for persistency
+            localStorage.setItem('active_staff_username', inputUsername);
+
             userEmailDisplay.textContent = `${userData.realName} (${inputUsername})`;
             usernameGatekeeperModal.style.display = 'none';
             
@@ -378,6 +403,8 @@ gatekeeperSubmitBtn.addEventListener('click', async () => {
 });
 
 gatekeeperLogoutBtn.addEventListener('click', async () => {
+    // UPDATED: Clear storage on logout
+    localStorage.removeItem('active_staff_username');
     await signOut(auth);
     window.location.reload();
 });
@@ -455,6 +482,8 @@ function showError(msg) {
 
 logoutBtn.addEventListener('click', async () => {
     try {
+        // UPDATED: Clear storage on logout
+        localStorage.removeItem('active_staff_username');
         await signOut(auth);
         window.location.reload();
     } catch (error) {
@@ -1174,17 +1203,25 @@ function applyRemoteLocks(tabsToLock, lockMeta) {
 
     // 4. TRIGGER POPUP IF LOCKS EXIST AND METADATA IS PRESENT
     if(tabsToLock.length > 0 && lockMeta) {
-        // Record that we are in maintenance mode if applicable
-        if (lockMeta.type === 'maintenance') {
-            localStorage.setItem('was_in_maintenance', 'true');
-        }
+        // Record the lock type so we can show the correct "Unlock" message later
+        localStorage.setItem('previous_lock_type', lockMeta.type);
+        
         checkAndShowLockPopup(lockMeta);
     } else {
-        // --- NEW: CHECK IF WE JUST EXITED MAINTENANCE ---
-        // If no locks (or empty list), check if we were previously in maintenance
-        if (localStorage.getItem('was_in_maintenance') === 'true') {
-            localStorage.removeItem('was_in_maintenance'); // Clear flag immediately
-            showMaintenanceOverPopup();
+        // --- UPDATED: UNIFIED UNLOCK POPUP LOGIC ---
+        // Check if we just exited a lock state
+        const prevType = localStorage.getItem('previous_lock_type');
+        
+        // Handling legacy 'was_in_maintenance' just in case, but favoring new key
+        if (prevType) {
+            localStorage.removeItem('previous_lock_type'); // Clear flag
+            localStorage.removeItem('was_in_maintenance'); // Clear legacy flag if present
+            
+            showUnlockPopup(prevType);
+        } else if (localStorage.getItem('was_in_maintenance') === 'true') {
+             // Fallback for transition period
+             localStorage.removeItem('was_in_maintenance');
+             showUnlockPopup('maintenance');
         } else {
             // Normal unlock: ensure modal is hidden
             lockReasonModal.style.display = 'none';
@@ -1192,37 +1229,48 @@ function applyRemoteLocks(tabsToLock, lockMeta) {
     }
 }
 
-// --- NEW: MAINTENANCE OVER POPUP ---
-function showMaintenanceOverPopup() {
+// --- UPDATED: UNIFIED UNLOCK POPUP ---
+function showUnlockPopup(type) {
     const modalContent = lockReasonModal.querySelector('.lock-popup-content');
     modalContent.className = 'modal-box lock-popup-content theme-maintenance-over'; // Apply GREEN theme
     
+    // Default success icon
     lockPopupIcon.className = 'fa-solid fa-check-circle';
-    lockPopupTitle.textContent = "System Updated";
-    lockPopupMessage.textContent = "Maintenance is complete. Please refresh to load new changes.";
+    
+    // Configure text based on previous lock type
+    if (type === 'maintenance') {
+        lockPopupTitle.textContent = "System Updated";
+        lockPopupMessage.textContent = "Maintenance is complete. Please refresh to load new changes.";
+    } else {
+        // Basic or Review (Suspension)
+        lockPopupTitle.textContent = "Access Restored";
+        lockPopupMessage.textContent = "Tabs are unlocked for you now. You may continue, click refresh for changes to happen.";
+    }
     
     lockPopupDuration.style.display = 'none';
     
-    // Hide 'Don't show again' for this positive message? 
-    // Or keep it. Usually good to hide it for a 'Success' message that requires action.
+    // Hide 'Don't show again' checkbox if present
     const checkboxWrapper = lockReasonModal.querySelector('.lock-popup-checkbox-wrapper');
     if(checkboxWrapper) checkboxWrapper.style.display = 'none';
+
+    // IMPORTANT: Hide "Contact Admin" button for unlocked state, show only Refresh
+    const contactBtn = lockReasonModal.querySelector('.modal-actions .modal-btn.secondary');
+    if (contactBtn) contactBtn.style.display = 'none';
 
     // Show Modal
     lockReasonModal.style.display = 'flex';
 }
 
 function checkAndShowLockPopup(meta) {
-    // UPDATED: Removed Suppression Check completely.
-    // Popup will now show every time this function is called (refresh or lock update).
-
     // Configure Popup Content based on Reason Type
     const modalContent = lockReasonModal.querySelector('.lock-popup-content');
     modalContent.className = 'modal-box lock-popup-content'; // Reset classes
     lockPopupDuration.style.display = 'none';
-    
-    // Removed: checkboxWrapper display logic
 
+    // IMPORTANT: Restore "Contact Admin" button visibility (it might have been hidden by unlock popup)
+    const contactBtn = lockReasonModal.querySelector('.modal-actions .modal-btn.secondary');
+    if (contactBtn) contactBtn.style.display = 'flex';
+    
     if (meta.type === 'maintenance') {
         modalContent.classList.add('theme-maintenance');
         lockPopupIcon.className = 'fa-solid fa-screwdriver-wrench';
@@ -1854,6 +1902,13 @@ function downloadFile(uri, filename) {
     document.body.removeChild(link);
 }
 
+// NEW HELPER: Get Display Name for Ticket Type
+function getDisplayTicketType(type) {
+    if (type === 'Gold') return 'VVIP';
+    if (type === 'Diamond') return 'VIP';
+    return 'Classic';
+}
+
 function exportCSV(data, filename) {
     let csvContent = "data:text/csv;charset=utf-8,";
     // UPDATED: Added Ticket Type header
@@ -1861,8 +1916,9 @@ function exportCSV(data, filename) {
     data.forEach((row, index) => {
         const scannedTime = row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : "";
         const cleanName = row.name.replace(/,/g, ""); 
-        // UPDATED: Added row.ticketType
-        const rowStr = `${index + 1},${cleanName},${row.ticketType || 'Classic'},${row.age},${row.gender},${row.phone},${row.status},${row.id},${scannedTime}`;
+        // UPDATED: Added row.ticketType with formatting
+        const displayType = getDisplayTicketType(row.ticketType);
+        const rowStr = `${index + 1},${cleanName},${displayType},${row.age},${row.gender},${row.phone},${row.status},${row.id},${scannedTime}`;
         csvContent += rowStr + "\n";
     });
     downloadFile(encodeURI(csvContent), `${filename}.csv`);
@@ -1872,7 +1928,7 @@ function exportXLSX(data, filename) {
     const worksheetData = data.map((row, index) => ({
         "S.No.": index + 1,
         "Guest Name": row.name,
-        "Ticket Type": row.ticketType || 'Classic', // UPDATED
+        "Ticket Type": getDisplayTicketType(row.ticketType), // UPDATED
         "Age": row.age,
         "Gender": row.gender,
         "Phone": row.phone,
@@ -1899,7 +1955,7 @@ function exportPDF(data, filename) {
         tableRows.push([
             index + 1,
             row.name,
-            row.ticketType || 'Classic', // UPDATED
+            getDisplayTicketType(row.ticketType), // UPDATED
             row.age,
             row.gender,
             row.phone,
@@ -1915,7 +1971,7 @@ function exportTXT(data, filename) {
     let content = `GUEST LIST EXPORT - ${new Date().toLocaleString()}\n\n`;
     data.forEach((row, i) => {
         content += `${i+1}. ${row.name.toUpperCase()} \n`;
-        content += `   Type:    ${row.ticketType || 'Classic'}\n`; // UPDATED
+        content += `   Type:    ${getDisplayTicketType(row.ticketType)}\n`; // UPDATED
         content += `   Details: ${row.age} / ${row.gender}\n`;
         content += `   Phone:   ${row.phone}\n`;
         content += `   Status:  ${row.status.toUpperCase()}\n`;
@@ -1929,7 +1985,11 @@ function exportTXT(data, filename) {
 }
 
 function exportJSON(data, filename) {
-    const jsonWithSerial = data.map((item, index) => ({ s_no: index + 1, ticket_type: item.ticketType || 'Classic', ...item }));
+    const jsonWithSerial = data.map((item, index) => ({ 
+        s_no: index + 1, 
+        ticket_type: getDisplayTicketType(item.ticketType), // UPDATED
+        ...item 
+    }));
     const jsonStr = JSON.stringify(jsonWithSerial, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1947,7 +2007,7 @@ function exportDOC(data, filename) {
             </tr>
     `;
     data.forEach((row, index) => {
-        htmlBody += `<tr><td>${index + 1}</td><td>${row.name}</td><td>${row.ticketType || 'Classic'}</td><td>${row.age} / ${row.gender}</td><td>${row.phone}</td><td>${row.status}</td></tr>`;
+        htmlBody += `<tr><td>${index + 1}</td><td>${row.name}</td><td>${getDisplayTicketType(row.ticketType)}</td><td>${row.age} / ${row.gender}</td><td>${row.phone}</td><td>${row.status}</td></tr>`;
     });
     htmlBody += "</table></body></html>";
     const blob = new Blob(['\ufeff', htmlBody], { type: 'application/msword' });
