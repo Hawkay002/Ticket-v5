@@ -2610,4 +2610,4 @@ window.createStaffUser = async function(username, realName, role) {
     } catch (e) {
         console.error("Error creating user:", e);
     }
-};
+};  
