@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";   
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";    
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -216,6 +216,13 @@ const confirmLogDeleteModal = document.getElementById('confirm-log-delete-modal'
 const deleteLogCountSpan = document.getElementById('delete-log-count');
 const cancelLogDeleteBtn = document.getElementById('cancelLogDelete');
 const confirmLogDeleteBtn = document.getElementById('confirmLogDelete');
+// NEW: Log Progress Elements
+const logDeleteProgressContainer = document.getElementById('log-delete-progress-container');
+const logDeleteProgressBar = document.getElementById('log-delete-progress-bar');
+const logDeleteCurrentSpan = document.getElementById('log-delete-current');
+const logDeleteTotalSpan = document.getElementById('log-delete-total');
+const logDeleteMsg = document.getElementById('log-delete-msg');
+
 let pendingLogDeleteIds = [];
 
 // Contact Tray
@@ -1244,7 +1251,7 @@ function showUnlockPopup(type) {
     } else {
         // Basic or Review (Suspension)
         lockPopupTitle.textContent = "Access Restored";
-        lockPopupMessage.textContent = "Your tabs are unlocked now. Just refresh the page to apply the changes.";
+        lockPopupMessage.textContent = "Tabs are unlocked for you now. You may continue, click refresh for changes to happen.";
     }
     
     lockPopupDuration.style.display = 'none';
@@ -2437,6 +2444,10 @@ deleteLogsBtn.addEventListener('click', () => {
     pendingLogDeleteIds = selectedIds;
     deleteLogCountSpan.textContent = selectedIds.length;
     confirmLogDeleteModal.style.display = 'flex';
+    
+    // Hide progress bar initially
+    if(logDeleteProgressContainer) logDeleteProgressContainer.style.display = 'none';
+    if(logDeleteMsg) logDeleteMsg.style.display = 'block';
 });
 
 cancelLogDeleteBtn.addEventListener('click', () => {
@@ -2444,20 +2455,38 @@ cancelLogDeleteBtn.addEventListener('click', () => {
     pendingLogDeleteIds = [];
 });
 
+// --- UPDATED: PROGRESS BAR LOGIC ---
 confirmLogDeleteBtn.addEventListener('click', async () => {
     if (!navigator.onLine) return showToast("Offline", "Cannot delete logs while offline.");
     if(pendingLogDeleteIds.length > 0) {
         confirmLogDeleteBtn.textContent = "Deleting...";
+        confirmLogDeleteBtn.disabled = true;
+        cancelLogDeleteBtn.style.display = 'none'; // Lock cancel
+        
+        // Show progress UI
+        if(logDeleteMsg) logDeleteMsg.style.display = 'none';
+        if(logDeleteProgressContainer) logDeleteProgressContainer.style.display = 'block';
+        
+        const total = pendingLogDeleteIds.length;
+        let processed = 0;
+        logDeleteTotalSpan.textContent = total;
+        logDeleteCurrentSpan.textContent = '0';
+        logDeleteProgressBar.style.width = '0%';
+
         try {
             for(const id of pendingLogDeleteIds) {
                 await deleteDoc(doc(db, 'activity_logs', id));
+                processed++;
+                const percentage = Math.round((processed / total) * 100);
+                logDeleteProgressBar.style.width = `${percentage}%`;
+                logDeleteCurrentSpan.textContent = processed;
             }
             
-            logAction("LOG_DELETE", `Admin deleted ${pendingLogDeleteIds.length} activity records.`);
+            logAction("LOG_DELETE", `Admin deleted ${total} activity records.`);
 
             allActivityLogs = allActivityLogs.filter(l => !selectedLogIds.has(l.id));
             
-            showToast("Logs Deleted", `Removed ${pendingLogDeleteIds.length} entries.`);
+            showToast("Logs Deleted", `Removed ${total} entries.`);
             
         } catch(e) {
             console.error("Delete logs error:", e);
@@ -2465,9 +2494,11 @@ confirmLogDeleteBtn.addEventListener('click', async () => {
         } finally {
             confirmLogDeleteModal.style.display = 'none';
             confirmLogDeleteBtn.textContent = "Delete";
+            confirmLogDeleteBtn.disabled = false;
+            cancelLogDeleteBtn.style.display = 'inline-block';
             pendingLogDeleteIds = [];
             selectedLogIds.clear(); 
-            selectLogsBtn.click(); 
+            selectLogsBtn.click(); // Exit selection mode
         }
     }
 });
