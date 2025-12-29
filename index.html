@@ -68,7 +68,17 @@
     <div id="confirm-log-delete-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Confirm Log Deletion</h3>
-            <p>Are you sure you want to permanently remove <span id="delete-log-count" style="color: white; font-weight: bold;">0</span> activity logs?</p>
+            <p id="log-delete-msg">Are you sure you want to permanently remove <span id="delete-log-count" style="color: white; font-weight: bold;">0</span> activity logs?</p>
+            
+            <div id="log-delete-progress-container" style="display: none; margin-top: 15px; margin-bottom: 15px;">
+                <div style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div id="log-delete-progress-bar" style="width: 0%; height: 100%; background: #ef4444; transition: width 0.3s ease;"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: #aaa; margin-top: 5px; text-align: right;">
+                    Deleting <span id="log-delete-current">0</span> / <span id="log-delete-total">0</span>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button id="cancelLogDelete" class="modal-btn secondary">Cancel</button>
                 <button id="confirmLogDelete" class="modal-btn danger">Delete</button>
