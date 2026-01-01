@@ -1152,6 +1152,13 @@ tr:hover td {
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
 }
 
+/* NEW: IMPORT DATA ACTION (INDIGO) */
+.log-action-IMPORT_DATA {
+    background: rgba(99, 102, 241, 0.15); /* Indigo tint */
+    color: #818cf8; /* Indigo-400 */
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
 @keyframes dance {
     0%, 100% { transform: translateY(0) rotate(0deg); }
     25% { transform: translateY(-3px) rotate(-3deg); }
@@ -1906,4 +1913,36 @@ tr:hover td {
     color: #fff;
     border: none;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+/* ========================================= */
+/* UPDATED: Guest List Header Layout         */
+/* ========================================= */
+
+.guest-list-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap; /* Allows wrapping on small screens */
+    gap: 15px;      /* Spacing between title and buttons when wrapped */
+}
+
+/* On mobile, stack them and stretch buttons */
+@media (max-width: 600px) {
+    .guest-list-header-wrapper {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .booked-controls {
+        width: 100%;
+        display: flex;
+        gap: 10px;
+    }
+    
+    .booked-controls button {
+        flex: 1; /* Makes buttons equal width */
+        justify-content: center;
+    }
 }
