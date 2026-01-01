@@ -2,7 +2,7 @@
 ## 🕶️ Operational Command Center — *Midnight Void Edition*
 
 **Version:** 5.0  
-**Changelog:** https://changelog-kappa.vercel.app/
+**Changelog:** https://changelog-kappa.vercel.app/  
 **Architecture:** Serverless Single Page Application  
 **Theme:** Midnight Void / High-Security  
 **License:** Apache License 2.0  
