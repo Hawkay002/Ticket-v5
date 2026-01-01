@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";  
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";    
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, getDoc, query, deleteDoc, updateDoc, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -73,6 +73,9 @@ let currentFilteredLogs = [];
 let currentLogFilter = 'all';
 let isLogSelectionMode = false; 
 let selectedLogIds = new Set(); 
+
+// Import State
+let parsedImportData = [];
 
 // UI State
 let searchTerm = '';
@@ -183,7 +186,7 @@ const selectAllLogsCheckbox = document.getElementById('selectAllLogsCheckbox');
 const logsSelectAllContainer = document.querySelector('.logs-select-all-container');
 const logsSelectionCountSpan = document.getElementById('logsSelectionCount');
 
-// Selection & Export
+// Selection, Import & Export
 const selectBtn = document.getElementById('selectBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
@@ -196,6 +199,22 @@ const exportFormat = document.getElementById('exportFormat');
 const cancelExportBtn = document.getElementById('cancelExport');
 const confirmExportBtn = document.getElementById('confirmExport');
 const exportCountMsg = document.getElementById('export-count-msg');
+
+// Import Elements
+const importBtn = document.getElementById('importBtn');
+const importModal = document.getElementById('import-modal');
+const importFileInput = document.getElementById('importFileInput');
+const browseFileBtn = document.getElementById('browseFileBtn');
+const selectedFileName = document.getElementById('selectedFileName');
+const importSummary = document.getElementById('import-summary');
+const importTotalCount = document.getElementById('importTotalCount');
+const importProgressContainer = document.getElementById('import-progress-container');
+const importProgressBar = document.getElementById('import-progress-bar');
+const importCurrentSpan = document.getElementById('import-current');
+const importTotalSpan = document.getElementById('import-total');
+const cancelImportBtn = document.getElementById('cancelImport');
+const confirmImportBtn = document.getElementById('confirmImport');
+
 
 // Ticket Creation & Views
 const ticketForm = document.getElementById('ticketForm');
@@ -211,6 +230,13 @@ const deleteCountSpan = document.getElementById('delete-count');
 const cancelDeleteBtn = document.getElementById('cancelDelete');
 const confirmDeleteBtn = document.getElementById('confirmDelete');
 let pendingDeleteIds = [];
+
+// NEW: Guest Delete Progress Elements
+const deleteProgressContainer = document.getElementById('delete-progress-container');
+const deleteProgressBar = document.getElementById('delete-progress-bar');
+const deleteCurrentSpan = document.getElementById('delete-current');
+const deleteTotalSpan = document.getElementById('delete-total');
+const deleteMsgText = document.getElementById('delete-msg-text');
 
 const confirmLogDeleteModal = document.getElementById('confirm-log-delete-modal');
 const deleteLogCountSpan = document.getElementById('delete-log-count');
@@ -1834,6 +1860,10 @@ deleteBtn.addEventListener('click', () => {
     pendingDeleteIds = selectedIds;
     deleteCountSpan.textContent = selectedIds.length;
     confirmModal.style.display = 'flex';
+    
+    // NEW: Reset UI for deletion modal
+    if(deleteProgressContainer) deleteProgressContainer.style.display = 'none';
+    if(deleteMsgText) deleteMsgText.style.display = 'block';
 });
 
 cancelDeleteBtn.addEventListener('click', () => {
@@ -1844,20 +1874,345 @@ cancelDeleteBtn.addEventListener('click', () => {
 confirmDeleteBtn.addEventListener('click', async () => {
     if (!navigator.onLine) return showToast("Offline", "Cannot delete while offline.");
     if(pendingDeleteIds.length > 0) {
+        // UI Updates for Progress Start
         confirmDeleteBtn.textContent = "Deleting...";
-        for(const id of pendingDeleteIds) {
-            await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', id));
-        }
+        confirmDeleteBtn.disabled = true;
+        cancelDeleteBtn.style.display = 'none'; // Lock cancel
         
-        logAction("TICKET_DELETE", `Deleted ${pendingDeleteIds.length} tickets from guest list.`);
+        if(deleteMsgText) deleteMsgText.style.display = 'none';
+        if(deleteProgressContainer) deleteProgressContainer.style.display = 'block';
+        
+        const total = pendingDeleteIds.length;
+        let processed = 0;
+        
+        if(deleteTotalSpan) deleteTotalSpan.textContent = total;
+        if(deleteCurrentSpan) deleteCurrentSpan.textContent = '0';
+        if(deleteProgressBar) deleteProgressBar.style.width = '0%';
 
-        confirmModal.style.display = 'none';
-        confirmDeleteBtn.textContent = "Delete";
-        pendingDeleteIds = [];
-        selectedTicketIds.clear(); 
-        selectBtn.click(); 
+        try {
+            for(const id of pendingDeleteIds) {
+                await deleteDoc(doc(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets', id));
+                
+                // Update Progress
+                processed++;
+                const percentage = Math.round((processed / total) * 100);
+                if(deleteProgressBar) deleteProgressBar.style.width = `${percentage}%`;
+                if(deleteCurrentSpan) deleteCurrentSpan.textContent = processed;
+            }
+            
+            logAction("TICKET_DELETE", `Deleted ${pendingDeleteIds.length} tickets from guest list.`);
+            showToast("Success", `Deleted ${processed} entries.`);
+
+        } catch (e) {
+            console.error("Deletion error:", e);
+            alert("Error during deletion: " + e.message);
+        } finally {
+            confirmModal.style.display = 'none';
+            confirmDeleteBtn.textContent = "Delete";
+            confirmDeleteBtn.disabled = false;
+            cancelDeleteBtn.style.display = 'inline-block';
+            
+            pendingDeleteIds = [];
+            selectedTicketIds.clear(); 
+            selectBtn.click(); // Exit selection mode
+        }
     }
 });
+
+// Import Logic 
+if(importBtn) {
+    importBtn.addEventListener('click', () => {
+        importModal.style.display = 'flex';
+        resetImportUI();
+    });
+}
+
+if(cancelImportBtn) {
+    cancelImportBtn.addEventListener('click', () => {
+        importModal.style.display = 'none';
+    });
+}
+
+if(browseFileBtn) {
+    browseFileBtn.addEventListener('click', () => {
+        importFileInput.click();
+    });
+}
+
+importFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        selectedFileName.textContent = file.name;
+        parseImportFile(file);
+    }
+});
+
+function resetImportUI() {
+    parsedImportData = [];
+    importFileInput.value = '';
+    selectedFileName.textContent = '';
+    importSummary.style.display = 'none';
+    importProgressContainer.style.display = 'none';
+    confirmImportBtn.disabled = true;
+    confirmImportBtn.textContent = 'Import Data';
+    browseFileBtn.style.display = 'inline-block';
+}
+
+async function parseImportFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    try {
+        let data = [];
+        if (ext === 'json') {
+            const text = await file.text();
+            data = JSON.parse(text);
+        } else if (ext === 'csv' || ext === 'txt') {
+            const text = await file.text();
+            data = parseCSV(text);
+        } else if (ext === 'xlsx') {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            data = XLSX.utils.sheet_to_json(sheet);
+        } else {
+            throw new Error("Unsupported file format");
+        }
+
+        // Normalization
+        parsedImportData = data.map(normalizeRecord).filter(r => r.name && r.phone);
+        
+        // Update UI
+        importTotalCount.textContent = parsedImportData.length;
+        importSummary.style.display = 'block';
+        confirmImportBtn.disabled = parsedImportData.length === 0;
+
+    } catch (e) {
+        console.error("Parse error:", e);
+        alert("Error parsing file: " + e.message);
+        resetImportUI();
+    }
+}
+
+// -------------------------------------------------------------
+// UPDATED: ROBUST CSV/TXT PARSER (Auto-detects delimiters)
+// -------------------------------------------------------------
+function parseCSV(text) {
+    const lines = text.split(/\r\n|\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+    
+    // 1. Auto-detect delimiter from the header row
+    const headerLine = lines[0];
+    const possibleDelimiters = [',', '\t', ';', '|'];
+    let delimiter = ','; // Default
+    let maxCount = 0;
+
+    possibleDelimiters.forEach(d => {
+        const count = headerLine.split(d).length;
+        if (count > maxCount) {
+            maxCount = count;
+            delimiter = d;
+        }
+    });
+
+    // 2. Parse Headers
+    const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+    
+    const result = [];
+    
+    // 3. Parse Rows
+    for(let i = 1; i < lines.length; i++) {
+        // Simple split logic with detected delimiter
+        // This is safer for simple lists than complex regex if data is clean
+        let row = lines[i].split(delimiter);
+
+        let obj = {};
+        let hasData = false;
+
+        headers.forEach((h, idx) => {
+            let val = row[idx] ? row[idx].trim().replace(/^"|"$/g, '') : '';
+            if(val) hasData = true;
+            obj[h] = val;
+        });
+
+        if(hasData) result.push(obj);
+    }
+    return result;
+}
+
+// -------------------------------------------------------------
+// UPDATED: ROBUST NORMALIZE RECORD FUNCTION
+// -------------------------------------------------------------
+function normalizeRecord(raw) {
+    // Attempt to map various keys to standard schema
+    const keys = Object.keys(raw);
+    
+    // Helper to find value case-insensitively
+    // UPDATED: Replaces spaces in keys to match "Entry Time" -> "entrytime"
+    const getVal = (possibleKeys) => {
+        const key = keys.find(k => possibleKeys.includes(k.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        return key ? raw[key] : '';
+    };
+
+    let ticketTypeVal = getVal(['tickettype', 'type']) || 'Classic';
+    // Normalize ticket type value
+    if (ticketTypeVal.toLowerCase() === 'vip') ticketTypeVal = 'Diamond';
+    if (ticketTypeVal.toLowerCase() === 'vvip') ticketTypeVal = 'Gold';
+    if (!['Diamond', 'Gold', 'Classic'].includes(ticketTypeVal)) ticketTypeVal = 'Classic';
+
+    // NEW: Capture Status
+    let statusVal = getVal(['status', 'state']) || 'coming-soon';
+    statusVal = statusVal.toLowerCase().trim();
+    // Normalize status strings
+    if(statusVal === 'arrived' || statusVal === 'checked in') statusVal = 'arrived';
+    else if(statusVal === 'absent') statusVal = 'absent';
+    else statusVal = 'coming-soon';
+
+    return {
+        name: getVal(['guestname', 'name', 'fullname']) || 'Unknown',
+        phone: (getVal(['phone', 'contact', 'mobile']) || '').toString().replace(/\D/g, '').slice(-10),
+        gender: getVal(['gender', 'sex']) || 'Other',
+        age: getVal(['age']) || '18',
+        ticketType: ticketTypeVal,
+        // NEW: Return Status and Entry Time
+        status: statusVal,
+        entryTimeRaw: getVal(['entrytime', 'entry', 'scannedat', 'time', 'entry time']) // Added 'entry time'
+    };
+}
+
+// -------------------------------------------------------------
+// UPDATED: DATE PARSER HELPER
+// -------------------------------------------------------------
+function parseImportedDate(input) {
+    if (!input) return null;
+
+    // 1. Handle Numbers (Excel Serial or JS Timestamp)
+    if (typeof input === 'number') {
+        // Excel serial dates are usually < 100000 (roughly year 2173)
+        // JS Timestamps (ms) are usually > 1000000000000 (roughly year 2001)
+        
+        // Check for Excel Serial Date (e.g., 45658.5)
+        // Base: Dec 30 1899. 25569 = Jan 1 1970.
+        // We use a safe range, e.g. > 25569 (1970) and < 2958465 (9999)
+        if (input > 25569 && input < 2958465) { 
+             // (value - 25569) * 86400 * 1000
+             return Math.round((input - 25569) * 86400 * 1000);
+        }
+        
+        // Check for JS Timestamp
+        if (input > 1000000000000) {
+            return input;
+        }
+        return null; 
+    }
+
+    // Convert to string safely for Regex
+    const dateString = String(input).trim();
+
+    // 2. Try standard JS parsing first
+    let timestamp = Date.parse(dateString);
+    if (!isNaN(timestamp)) return timestamp;
+
+    // 3. Custom parsers for "dd/mm/yyyy" or "dd-mm-yyyy"
+    const dmyMatch = dateString.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+    
+    if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1; // Month is 0-indexed
+        const year = parseInt(dmyMatch[3], 10);
+        const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+        const minute = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+        const second = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+        
+        const d = new Date(year, month, day, hour, minute, second);
+        return d.getTime();
+    }
+
+    // 4. Fallback for numeric strings from CSV that look like Excel serials
+    if (!isNaN(dateString) && Number(dateString) > 25569) {
+         return Math.round((Number(dateString) - 25569) * 86400 * 1000);
+    }
+
+    return null;
+}
+
+
+// -------------------------------------------------------------
+// UPDATED: IMPORT BUTTON HANDLER WITH STATUS LOGIC
+// -------------------------------------------------------------
+confirmImportBtn.addEventListener('click', async () => {
+    if (!navigator.onLine) return showToast("Offline", "Cannot import while offline.");
+    
+    confirmImportBtn.disabled = true;
+    browseFileBtn.style.display = 'none';
+    importProgressContainer.style.display = 'block';
+    
+    const total = parsedImportData.length;
+    let imported = 0;
+    let duplicates = 0;
+    
+    importTotalSpan.textContent = total;
+    importCurrentSpan.textContent = '0';
+    importProgressBar.style.width = '0%';
+
+    // Get current phone numbers to check duplicates
+    const existingPhones = new Set(bookedTickets.map(t => t.phone.replace('+91', '')));
+
+    try {
+        for (const record of parsedImportData) {
+            if (existingPhones.has(record.phone)) {
+                duplicates++;
+            } else {
+                // NEW: Handle Logic for Imported Status and Time
+                let scannedState = false;
+                let scannedAtTime = null;
+
+                if (record.status === 'arrived') {
+                    scannedState = true;
+                    // Try to parse the imported date string
+                    // Use our new robust parser
+                    const parsedTime = parseImportedDate(record.entryTimeRaw);
+                    // Use parsed time if valid, otherwise fallback to NOW
+                    scannedAtTime = parsedTime ? parsedTime : Date.now(); 
+                }
+
+                await addDoc(collection(db, APP_COLLECTION_ROOT, SHARED_DATA_ID, 'tickets'), {
+                    name: record.name,
+                    gender: record.gender,
+                    age: record.age,
+                    phone: '+91' + record.phone,
+                    ticketType: record.ticketType,
+                    status: record.status,     // Use imported status
+                    scanned: scannedState,     // Use calculated boolean
+                    scannedAt: scannedAtTime,  // Use parsed timestamp
+                    scannedBy: 'Import',
+                    createdBy: currentUsername || 'Import',
+                    createdAt: Date.now()
+                });
+                imported++;
+            }
+            
+            // Update Progress
+            const progress = imported + duplicates;
+            const percentage = Math.round((progress / total) * 100);
+            importProgressBar.style.width = `${percentage}%`;
+            importCurrentSpan.textContent = progress;
+        }
+        
+        logAction("IMPORT_DATA", `Imported ${imported} guests. Statuses preserved.`);
+        showToast("Import Complete", `Added ${imported} guests.`);
+        
+        setTimeout(() => {
+            importModal.style.display = 'none';
+        }, 1000);
+
+    } catch (e) {
+        console.error("Import error:", e);
+        alert("Import failed: " + e.message);
+        confirmImportBtn.disabled = false;
+    }
+});
+
 
 // Export Logic
 exportTriggerBtn.addEventListener('click', () => {
@@ -1916,12 +2271,16 @@ function getDisplayTicketType(type) {
     return 'Classic';
 }
 
+// -------------------------------------------------------------
+// UPDATED: EXPORT CSV WITH FULL DATE/TIME
+// -------------------------------------------------------------
 function exportCSV(data, filename) {
     let csvContent = "data:text/csv;charset=utf-8,";
     // UPDATED: Added Ticket Type header
     csvContent += "S.No.,Guest Name,Ticket Type,Age,Gender,Phone,Status,Ticket ID,Entry Time\n";
     data.forEach((row, index) => {
-        const scannedTime = row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : "";
+        // UPDATED: Use toLocaleString() for Date + Time
+        const scannedTime = row.scannedAt ? new Date(row.scannedAt).toLocaleString().replace(/,/g, ' ') : "";
         const cleanName = row.name.replace(/,/g, ""); 
         // UPDATED: Added row.ticketType with formatting
         const displayType = getDisplayTicketType(row.ticketType);
@@ -1931,6 +2290,9 @@ function exportCSV(data, filename) {
     downloadFile(encodeURI(csvContent), `${filename}.csv`);
 }
 
+// -------------------------------------------------------------
+// UPDATED: EXPORT XLSX WITH FULL DATE/TIME
+// -------------------------------------------------------------
 function exportXLSX(data, filename) {
     const worksheetData = data.map((row, index) => ({
         "S.No.": index + 1,
@@ -1941,7 +2303,8 @@ function exportXLSX(data, filename) {
         "Phone": row.phone,
         "Status": row.status,
         "Ticket ID": row.id,
-        "Entry Time": row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : ""
+        // UPDATED: Use toLocaleString()
+        "Entry Time": row.scannedAt ? new Date(row.scannedAt).toLocaleString() : ""
     }));
     const ws = XLSX.utils.json_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
@@ -2579,7 +2942,8 @@ function getClassMap() {
         'log-action-FACTORY_RESET': true,
         'log-action-LOCK_ACTION': true,
         'log-action-LOG_DELETE': true,
-        'log-action-EXPORT_DATA': true
+        'log-action-EXPORT_DATA': true,
+        'log-action-IMPORT_DATA': true // UPDATED: Added new key for styling
     };
 }
 
@@ -2610,4 +2974,4 @@ window.createStaffUser = async function(username, realName, role) {
     } catch (e) {
         console.error("Error creating user:", e);
     }
-};  
+};
