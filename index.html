@@ -57,7 +57,17 @@
     <div id="confirm-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Confirm Deletion</h3>
-            <p>Are you sure you want to permanently remove <span id="delete-count" style="color: white; font-weight: bold;">0</span> entries from the database?</p>
+            <p id="delete-msg-text">Are you sure you want to permanently remove <span id="delete-count" style="color: white; font-weight: bold;">0</span> entries from the database?</p>
+            
+            <div id="delete-progress-container" style="display: none; margin-top: 15px; margin-bottom: 15px;">
+                <div style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div id="delete-progress-bar" style="width: 0%; height: 100%; background: #ef4444; transition: width 0.3s ease;"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: #aaa; margin-top: 5px; text-align: right;">
+                    Deleting <span id="delete-current">0</span> / <span id="delete-total">0</span>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button id="cancelDelete" class="modal-btn secondary">Cancel</button>
                 <button id="confirmDelete" class="modal-btn danger">Delete</button>
@@ -106,8 +116,6 @@
                     P.S. If you believe this is a mistake, please contact the administrator or try refreshing.
                 </div>
             </div>
-
-            <!-- REMOVED: Don't Show Again Checkbox Wrapper -->
 
             <div class="modal-actions">
                 <a href="tel:+918777845713" class="modal-btn secondary" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -234,7 +242,6 @@
                 <div id="modalTicketTemplate">
                     <div class="ticket-content-wrapper">
                         <div class="ticket-header">
-                            <!-- UPDATED: Added ID to H3 -->
                             <h3 id="modalTicketTitleHeader">Entry Pass</h3>
                             <p id="modalEventNamePlace">--</p>
                         </div>
@@ -269,6 +276,43 @@
                         <i class="fa-brands fa-whatsapp" style="font-size: 1.2rem;"></i> Share via WhatsApp
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-modal" class="modal-overlay">
+        <div class="modal-box" style="max-width: 500px;">
+            <h3>Import Guests</h3>
+            <p style="margin-bottom: 15px;">Upload a file to bulk import tickets.</p>
+            
+            <div class="import-area" style="border: 2px dashed var(--border-subtle); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px; background: rgba(255,255,255,0.02);">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2rem; color: var(--accent-secondary); margin-bottom: 10px;"></i>
+                <p style="font-size: 0.9rem; color: #888; margin-bottom: 15px;">Supported: CSV, JSON</p>
+                <input type="file" id="importFileInput" accept=".csv, text/csv, application/vnd.ms-excel, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, .json, application/json, .txt, text/plain" style="display: none;">
+                <button id="browseFileBtn" class="premium-btn" style="width: auto; font-size: 0.9rem; padding: 8px 20px;">Browse Files</button>
+                <div id="selectedFileName" style="margin-top: 10px; font-size: 0.85rem; color: var(--success-green);"></div>
+            </div>
+
+            <div id="import-summary" style="display: none; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
+                    <span style="color: #aaa;">Total Records Found:</span>
+                    <span id="importTotalCount" style="color: white; font-weight: bold;">0</span>
+                </div>
+                <div style="font-size: 0.8rem; color: #666;">duplicates will be skipped based on phone number.</div>
+            </div>
+
+            <div id="import-progress-container" style="display: none; margin-bottom: 20px;">
+                <div style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div id="import-progress-bar" style="width: 0%; height: 100%; background: var(--success-green); transition: width 0.3s ease;"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: #aaa; margin-top: 5px; text-align: right;">
+                    Importing <span id="import-current">0</span> / <span id="import-total">0</span>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button id="cancelImport" class="modal-btn secondary">Cancel</button>
+                <button id="confirmImport" class="modal-btn success" disabled>Import Data</button>
             </div>
         </div>
     </div>
@@ -343,7 +387,6 @@
                         <form id="ticketForm">
                             <input type="text" id="name" class="premium-input" placeholder="Full Name" required>
                             
-                            <!-- UPDATED: Ticket Type Dropdown -->
                             <select id="ticketType" class="premium-input" required>
                                 <option value="Classic" selected>Classic</option>
                                 <option value="Diamond">VIP</option>
@@ -368,7 +411,6 @@
                         <div id="ticketTemplate">
                             <div class="ticket-content-wrapper">
                                 <div class="ticket-header">
-                                    <!-- UPDATED: Added ID to H3 -->
                                     <h3 id="ticketTitleHeader">Entry Pass</h3>
                                     <p id="eventNamePlace">Event Details Loading...</p>
                                 </div>
@@ -406,7 +448,7 @@
 
             <div id="booked" class="tab-content">
                 <div class="glass-panel" style="padding: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;">
+                    <div class="guest-list-header-wrapper">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h2 style="border: none; margin: 0; padding: 0;">Guest List</h2>
                             <div id="refreshStatusIndicator" title="Auto-syncs every 15s. Click to refresh now.">
@@ -414,8 +456,9 @@
                             </div>
                         </div>
                         <div class="booked-controls">
-                             <button id="selectBtn" class="action-btn-small">Select</button>
+                             <button id="importBtn" class="action-btn-small" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">Import</button>
                              <button id="deleteBtn" class="action-btn-small" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; display: none;">Delete</button>
+                             <button id="selectBtn" class="action-btn-small">Select</button>
                         </div>
                     </div>
 
@@ -429,7 +472,6 @@
                                 <i class="fa-solid fa-filter"></i> Filter / Sort
                             </button>
                             <div id="filterDropdown" class="filter-dropdown">
-                                <!-- UPDATED: NEW Ticket Type Filter -->
                                 <div class="dropdown-header">Filter Ticket Type</div>
                                 <div class="dropdown-item selected" data-type="filter-ticket" data-val="all">All Types</div>
                                 <div class="dropdown-item" data-type="filter-ticket" data-val="Classic">Classic Only</div>
@@ -484,7 +526,6 @@
                                     <th></th>
                                     <th style="width: 50px; text-align: center;">#</th>
                                     <th class="guest-name-col">Guest Name</th>
-                                    <!-- UPDATED: New Column for Ticket Type -->
                                     <th>Ticket Type</th>
                                     <th>Details</th>
                                     <th>Contact</th>
@@ -607,7 +648,7 @@
 
             <div id="logs" class="tab-content">
                 <div class="glass-panel" style="padding: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;">
+                    <div class="guest-list-header-wrapper">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <h2 style="border: none; margin: 0; padding: 0;">Activity Logs</h2>
                             <div id="refreshLogsBtn" title="Refresh Logs" style="cursor: pointer; color: var(--text-muted); font-size: 1rem; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,0.05);">
@@ -615,8 +656,8 @@
                             </div>
                         </div>
                         <div class="booked-controls">
-                             <button id="selectLogsBtn" class="action-btn-small">Select</button>
                              <button id="deleteLogsBtn" class="action-btn-small" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; display: none;">Delete</button>
+                             <button id="selectLogsBtn" class="action-btn-small">Select</button>
                         </div>
                     </div>
 
@@ -642,6 +683,7 @@
                                 <div class="dropdown-item" data-type="log-filter" data-val="LOCK_ACTION">Admin Locks</div>
                                 <div class="dropdown-item" data-type="log-filter" data-val="LOG_DELETE">Log Deletions</div>
                                 <div class="dropdown-item" data-type="log-filter" data-val="EXPORT_DATA">Data Exports</div>
+                                <div class="dropdown-item" data-type="log-filter" data-val="IMPORT_DATA">Import Data</div>
                             </div>
                         </div>
                     </div>
