@@ -1,7 +1,7 @@
 # 🎫 Event Ticketing System  
 ## 🕶️ Operational Command Center — *Midnight Void Edition*
 
-**Version:** 5.0  
+**Version:** 3.3.1  
 **Changelog:** https://changelog-kappa.vercel.app/  
 **Architecture:** Serverless Single Page Application  
 **Theme:** Midnight Void / High-Security  
